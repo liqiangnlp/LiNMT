@@ -1,0 +1,25 @@
+prerequest
+	python2.7.5+
+	numpy
+	matplotlib
+		
+
+2 install
+	su root
+	$ easy_install numpy
+	$ tar -zxvf matplotlib***.tar.gz
+	$ python setup.py install
+	
+	
+	
+	# Run   
+	
+	$ python matrix.py -s [source file]  -t [1bestfile] -i [number]  	
+	# Note:    sourcefile     1best file      number means the ith sentence
+	
+	
+	
+	
+	# if exist illegal character in ch sentences  install character set  such as [ SimHei ]
+	# how to instal it, future to do 
+	

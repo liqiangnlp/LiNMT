@@ -1,0 +1,15 @@
+# Fuxue Li
+
+
+Requirements: 
+ python2.7+
+ numpy
+ json
+
+two steps:
+
+1. build dictioary
+   order: python build_dictionary.py [ filename ]   
+
+2. statistic:
+   order: python main.py [ dic_filename ] [ filename ]
