@@ -2,12 +2,12 @@
 NMT developed by Qiang
 
 
-\# *                                * #
-\# * Author: Qiang Li               * #
-\# * Email : liqiangneu@gmail.com   * #
-\# * Date  : 10/30/2016             * #
-\# * Time  : 13:01                  * #
-\# *                                * #
+\# *                              
+\# * Author: Qiang Li             
+\# * Email : liqiangneu@gmail.com 
+\# * Date  : 10/30/2016           
+\# * Time  : 13:01                
+\# *                              
 
 
 1. Required
