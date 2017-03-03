@@ -2,12 +2,12 @@
 NMT developed by Qiang
 
 
-# *                                * #
-# * Author: Qiang Li               * #
-# * Email : liqiangneu@gmail.com   * #
-# * Date  : 10/30/2016             * #
-# * Time  : 13:01                  * #
-# *                                * #
+\# *                                * #
+\# * Author: Qiang Li               * #
+\# * Email : liqiangneu@gmail.com   * #
+\# * Date  : 10/30/2016             * #
+\# * Time  : 13:01                  * #
+\# *                                * #
 
 
 1. Required
@@ -20,12 +20,12 @@ NMT developed by Qiang
 
    first you should download gcc-4.9.3.tar.bz2, then
 
-   # yum install libmpc-devel mpfr-devel gmp-devel
+   \# yum install libmpc-devel mpfr-devel gmp-devel
    $ tar xvfj gcc-4.9.3.tar.bz2
    $ cd gcc-4.9.3
    $ ./configure --disable-multilib --enable-languages=c,c++
    $ make -j 4
-   # make install
+   \# make install
    $ ln -s /usr/local/lib64/libstdc++.so.6.0.20 path/NiuTrans.NMT // where you want to run NiuTrans.NMT, you should link libstdc++.6.0.20
 
 
@@ -34,7 +34,7 @@ NMT developed by Qiang
    first you should download boost_1_55_0.tar.gz, then
 
    $ rpm -qa boost      // if show something, then use the second command, otherwise use the third command 
-   # yum remove boost   // uninstall boost, then use 'rpm -qa boost', you will see nothing
+   \# yum remove boost   // uninstall boost, then use 'rpm -qa boost', you will see nothing
    $ tar xzvf boost_1_55_0.tar.gz 
    $ cd boost_1_55_0
    $ ./bootstrap.sh
@@ -46,8 +46,8 @@ NMT developed by Qiang
 
    $ ./cuda_8.0.44_linux.run --tmpdir=.              // all option is 'yes'
    $ sudo vi /etc/profile.d/cuda.sh                  // write enviroment variable 
-   # export PATH=$PATH:/usr/local/cuda/bin 
-   # export LD_LIBRARY_PATH=$PATH:/usr/local/cuda/lib64 
+   \# export PATH=$PATH:/usr/local/cuda/bin 
+   \# export LD_LIBRARY_PATH=$PATH:/usr/local/cuda/lib64 
    $ source /etc/profile.d/cuda.sh
    $ nvidia-smi // check
 
