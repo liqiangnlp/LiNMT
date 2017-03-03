@@ -1,42 +1,44 @@
 # NMT
 NMT developed by Qiang
 
-Email : liqiangneu@gmail.com 
-Date  : 10/30/2016           
-Time  : 13:01                
+Email : liqiangneu@gmail.com <br>
+Date  : 10/30/2016           <br>
+Time  : 13:01                <br>
                      
 
 
 1. Required
-   a) gcc 4.9.3
-   b) boost 1_55_0
-   c) CUDA_8.0 or CUDA_7.5
+
+
+   a) gcc 4.9.3              <br>
+   b) boost 1_55_0           <br>
+   c) CUDA_8.0 or CUDA_7.5   <br>
 
 
 2. Install gcc-4.9.3
 
-   first you should download gcc-4.9.3.tar.bz2, then
+   first you should download gcc-4.9.3.tar.bz2, then  <br>
 
-   \# yum install libmpc-devel mpfr-devel gmp-devel
-   $ tar xvfj gcc-4.9.3.tar.bz2
-   $ cd gcc-4.9.3
-   $ ./configure --disable-multilib --enable-languages=c,c++
-   $ make -j 4
-   \# make install
-   $ ln -s /usr/local/lib64/libstdc++.so.6.0.20 path/NiuTrans.NMT // where you want to run NiuTrans.NMT, you should link libstdc++.6.0.20
+   \# yum install libmpc-devel mpfr-devel gmp-devel   <br>
+   $ tar xvfj gcc-4.9.3.tar.bz2                       <br>
+   $ cd gcc-4.9.3                                     <br>
+   $ ./configure --disable-multilib --enable-languages=c,c++       <br>
+   $ make -j 4                                        <br>
+   \# make install                                    <br>
+   $ ln -s /usr/local/lib64/libstdc++.so.6.0.20 path/NiuTrans.NMT // where you want to run NiuTrans.NMT, you should link libstdc++.6.0.20 <br>
 
 
 3. Install boost_1_55_0
 
-   first you should download boost_1_55_0.tar.gz, then
+   first you should download boost_1_55_0.tar.gz, then  <br>
 
-   $ rpm -qa boost      // if show something, then use the second command, otherwise use the third command 
-   \# yum remove boost   // uninstall boost, then use 'rpm -qa boost', you will see nothing
-   $ tar xzvf boost_1_55_0.tar.gz 
-   $ cd boost_1_55_0
-   $ ./bootstrap.sh
-   $ ./b2
-   $ ./b2 install
+   $ rpm -qa boost      // if show something, then use the second command, otherwise use the third command  <br> 
+   \# yum remove boost   // uninstall boost, then use 'rpm -qa boost', you will see nothing                 <br>
+   $ tar xzvf boost_1_55_0.tar.gz                                                                           <br>
+   $ cd boost_1_55_0                                                                                        <br>
+   $ ./bootstrap.sh                                                                                         <br>
+   $ ./b2                                                                                                   <br>
+   $ ./b2 install                                                                                           <br>
 
 
 4. Install CUDA_8.0 or CUDA_7.5
