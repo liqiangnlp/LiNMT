@@ -1,0 +1,88 @@
+# *                                * #
+# * Author: Qiang Li               * #
+# * Email : liqiangneu@gmail.com   * #
+# * Date  : 10/30/2016             * #
+# * Time  : 13:01                  * #
+# *                                * #
+
+ONLINE = 1
+
+SOURCE_CODE_FOLDER = src/
+SOURCE_CODE_FOLDER_SERVER = src.server/
+PROGRAM_FOLDER = bin/
+LIB_FOLDER = lib/
+
+CUDA_INCLUDE = /usr/local/cuda-8.0/include/
+BOOST_INCLUDE = /usr/local/include/boost/
+CUDA_LIB_64 = /usr/local/cuda-8.0/lib64/
+BOOST_LIB = /usr/local/lib/
+EIGEN = ./package/eigen/
+
+NVCCFLAGS = -O3 -std=c++11 \
+            -g -Xcompiler -fopenmp \
+            -I $(CUDA_INCLUDE) \
+            -I $(BOOST_INCLUDE) \
+            -I $(EIGEN) \
+            -I $(SOURCE_CODE_FOLDER) \
+            -I $(SOURCE_CODE_FOLDER_SERVER) \
+            -L $(BOOST_LIB) \
+            -L $(CUDA_LIB_64) \
+            -l boost_system \
+            -l boost_filesystem \
+            -l boost_program_options \
+            -l cublas \
+            -l cudart \
+            -l curand \
+            -l cusolver \
+            -l cusparse \
+            -l nppc \
+            -l nppi \
+            -l npps
+
+SOURCE_CODE = $(SOURCE_CODE_FOLDER)deep_rnn_kernel.cu \
+              $(SOURCE_CODE_FOLDER)dispatcher.cu \
+              $(SOURCE_CODE_FOLDER)layer_gpu.cc \
+              $(SOURCE_CODE_FOLDER)utility_cu.cu \
+              $(SOURCE_CODE_FOLDER)utility_cc.cc \
+              $(SOURCE_CODE_FOLDER)file_helper.cc \
+              $(SOURCE_CODE_FOLDER)input_file_preprocess.cc \
+              $(SOURCE_CODE_FOLDER)file_helper_decoder.cc \
+              $(SOURCE_CODE_FOLDER)postprocess_unks.cc \
+              $(SOURCE_CODE_FOLDER)ibm_bleu_score.cc \
+              $(SOURCE_CODE_FOLDER)average_models.cc
+
+ifeq ($(ONLINE),1)
+    MACRO := -DONLINE_DECODER -UOFFLINE_DECODER
+    SOURCE_CODE += $(SOURCE_CODE_FOLDER_SERVER)export_api.cu \
+                   $(SOURCE_CODE_FOLDER_SERVER)config_parser.cpp \
+                   $(SOURCE_CODE_FOLDER_SERVER)online_test.cpp \
+                   $(SOURCE_CODE_FOLDER_SERVER)string_helper.cpp \
+                   $(SOURCE_CODE_FOLDER_SERVER)global_configuration.cc \
+                   $(SOURCE_CODE_FOLDER_SERVER)Proper_noun.cpp \
+                   $(SOURCE_CODE_FOLDER_SERVER)logger.cpp
+else
+    MACRO := -DOFFLINE_DECODER -UONLINE_DECODER
+    SOURCE_CODE += $(SOURCE_CODE_FOLDER)main.cu \
+                   $(SOURCE_CODE_FOLDER)global_configuration.cc
+    NVCCFLAGS += -DCUDNN_STATIC
+endif
+
+DECODER_EXEC = $(PROGRAM_FOLDER)NiuTrans.NMT
+DECODER_DLL = $(LIB_FOLDER)libDecoder.so
+
+all: decoder_dll decoder_exe
+
+decoder_dll: $(DECODER_DLL)
+decoder_exe: $(DECODER_EXEC)
+
+# build .so only in online mode
+$(DECODER_DLL):
+ifeq ($(ONLINE),1)
+	nvcc --shared --compiler-options '-fPIC' $(NVCCFLAGS) $(SOURCE_CODE) -o $@
+endif
+
+$(DECODER_EXEC):
+	nvcc $(NVCCFLAGS) $(MACRO) $(SOURCE_CODE) -o $@
+    
+clean:
+	-rm $(DECODER_EXEC) $(DECODER_DLL)
