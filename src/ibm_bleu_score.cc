@@ -729,8 +729,8 @@ int IbmBleuScore::BrevityPenaltyClosest( int &current_length, int &reference_len
 bool IbmBleuScore::PrintIbmBleuScoreLogo() {
   logger<<"####### SMT ####### SMT ####### SMT ####### SMT ####### SMT #######\n"
         <<"# Calculate IBM BLEU Score                                        #\n"
-        <<"#                                             Version 0.0.1       #\n"
-        <<"#                                             NEUNLPLab/YAYI corp #\n"
+        <<"#                                            Version 0.0.1        #\n"
+        <<"#                                            liqiangneu@gmail.com #\n"
         <<"####### SMT ####### SMT ####### SMT ####### SMT ####### SMT #######\n";
   return true;
 }

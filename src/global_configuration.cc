@@ -80,12 +80,15 @@ void GlobalConfiguration::ParseCommandLine(int argc, char **argv) {
 
   std::vector<std::string> v_words_embeddings;
 
+  std::vector<std::string> v_parameters_of_bpe;
+
   
   namespace p_options = boost::program_options;
   p_options::options_description description("Options");
   AddOptions(description, training_files, continue_train, test_files, \
              kbest_files, v_decoding_sentences, v_postprocess_unk, decoding_ratio, gpu_indices, lower_upper_range, \
-             adaptive_learning_rate, clip_cell_values, v_bleu_score, v_average_models, v_vocabulary_replacement, v_words_embeddings);
+             adaptive_learning_rate, clip_cell_values, v_bleu_score, v_average_models, v_vocabulary_replacement, \
+             v_words_embeddings, v_parameters_of_bpe);
 
   boost::program_options::variables_map v_map;
 
@@ -139,6 +142,10 @@ void GlobalConfiguration::ParseCommandLine(int argc, char **argv) {
       DumpWordEmbedding(v_map, v_words_embeddings);
     }
 
+    if (v_map.count("train-bpe")) {
+      TrainBytePairEncoding(v_map, v_parameters_of_bpe);
+    }
+
     //if (v_map.count("stoch-gen")) {
       // here is stoch-gen
     //  return;
@@ -166,7 +173,7 @@ void GlobalConfiguration::NormalSettingsAndChecking(boost::program_options::opti
         v_map.count("force-decoding") || v_map.count("postprocess-unk") || \
         v_map.count("bleu") || v_map.count("average-models") || \
         v_map.count("vocab-replacement") || v_map.count("word-embedding") || \
-        v_map.count("stoch-gen"))) {
+        v_map.count("stoch-gen") || v_map.count("train-bpe"))) {
     logger<<"Please use \n"
           <<"   $./NiuTrans.NMT --help\n";
     exit(EXIT_FAILURE);
@@ -182,8 +189,9 @@ void GlobalConfiguration::NormalSettingsAndChecking(boost::program_options::opti
     OptionsSetByUser(v_map);
   }
 
-  if (v_map.count("average-models") || v_map.count("postprocess-unk") || v_map.count("bleu") || v_map.count("vocab-replacement") || \
-      v_map.count("word-embedding")){
+  if (v_map.count("average-models") || v_map.count("postprocess-unk") || \
+	  v_map.count("bleu") || v_map.count("vocab-replacement") || \
+      v_map.count("word-embedding") || v_map.count("train-bpe")){
     return;
   }
 
@@ -359,6 +367,7 @@ void GlobalConfiguration::TuningAndContinueTuning(boost::program_options::variab
   average_models_mode_ = false;
   vocabulary_replacement_mode_ = false;
   dump_word_embedding_mode_ = false;
+  train_bpe_mode_ = false;
   return;
 }
 
@@ -1029,6 +1038,7 @@ void GlobalConfiguration::Decoding(boost::program_options::variables_map &v_map,
   average_models_mode_ = false;
   vocabulary_replacement_mode_ = false;
   dump_word_embedding_mode_ = false;
+  train_bpe_mode_ = false;
   sequence_to_sequence_mode_ = true;
   return;  
 }
@@ -1138,6 +1148,7 @@ void GlobalConfiguration::DecodingSentence(boost::program_options::variables_map
   average_models_mode_ = false;
   vocabulary_replacement_mode_ = false;
   dump_word_embedding_mode_ = false;
+  train_bpe_mode_ = false;
   sequence_to_sequence_mode_ = true;
   return;
 }
@@ -1259,6 +1270,7 @@ void GlobalConfiguration::ForceDecoding(boost::program_options::variables_map &v
   average_models_mode_ = false;
   vocabulary_replacement_mode_ = false;
   dump_word_embedding_mode_ = false;
+  train_bpe_mode_ = false;
   return;
 }
 
@@ -1290,6 +1302,7 @@ void GlobalConfiguration::PostProcessUnk(boost::program_options::variables_map &
   average_models_mode_ = false;
   vocabulary_replacement_mode_ = false;
   dump_word_embedding_mode_ = false;
+  train_bpe_mode_ = false;
   return;
 }
 
@@ -1320,6 +1333,7 @@ void GlobalConfiguration::CalculateBleuScore(boost::program_options::variables_m
   average_models_mode_ = false;
   vocabulary_replacement_mode_ = false;
   dump_word_embedding_mode_ = false;
+  train_bpe_mode_ = false;
   return;
 }
 
@@ -1349,6 +1363,7 @@ void GlobalConfiguration::AverageModels(boost::program_options::variables_map &v
   average_models_mode_ = true;
   vocabulary_replacement_mode_ = false;
   dump_word_embedding_mode_ = false;
+  train_bpe_mode_ = false;
   return;
 }
 
@@ -1375,7 +1390,7 @@ void GlobalConfiguration::ReplaceVocab(boost::program_options::variables_map &v_
   average_models_mode_ = false;
   vocabulary_replacement_mode_ = true;
   dump_word_embedding_mode_ = false;
-
+  train_bpe_mode_ = false;
   return;
 }
 
@@ -1403,10 +1418,37 @@ void GlobalConfiguration::DumpWordEmbedding(boost::program_options::variables_ma
   average_models_mode_ = false;
   vocabulary_replacement_mode_ = false;
   dump_word_embedding_mode_ = true;
+  train_bpe_mode_ = false;
   return;
 }
 
 
+void GlobalConfiguration::TrainBytePairEncoding(boost::program_options::variables_map &v_map, std::vector<std::string> &v_parameters_of_bpe) {
+  logger<<"\n$$ Train Byte Pair Encoding Model\n";
+  if (v_parameters_of_bpe.size() != 4) {
+    logger<<"Error: --train-bpe takes four arguements.\n"
+          <<" <min-freq> <vocab-size> <input> <output>\n";
+    exit(EXIT_FAILURE);
+  }
+
+  bpe_vocabulary_size_ = std::stoi(v_parameters_of_bpe.at(0).c_str());
+  bpe_min_frequency_ = std::stoi(v_parameters_of_bpe.at(1).c_str());
+  bpe_input_file_name_ = v_parameters_of_bpe[2];
+  bpe_output_file_name_ = v_parameters_of_bpe[3];
+  
+  training_mode_ = false;
+  decode_mode_ = false;
+  decode_sentence_mode_ = false;
+  test_mode_ = false;
+  stochastic_generation_mode_ = false;
+  postprocess_unk_mode_ = false;
+  calculate_bleu_mode_ = false;
+  average_models_mode_ = false;
+  vocabulary_replacement_mode_ = false;
+  dump_word_embedding_mode_ = false;
+  train_bpe_mode_ = true;
+  return;
+}
 
 
 
@@ -1459,7 +1501,8 @@ void GlobalConfiguration::AddOptions(boost::program_options::options_description
                                      std::vector<int> &gpu_indices, std::vector<precision> &lower_upper_range, \
                                      std::vector<std::string> &adaptive_learning_rate, std::vector<precision> &clip_cell_values, \
                                      std::vector<std::string> &v_bleu_score, std::vector<std::string> &v_average_models, \
-                                     std::vector<std::string> &v_vocabulary_replacement, std::vector<std::string> &v_words_embeddings) {
+                                     std::vector<std::string> &v_vocabulary_replacement, std::vector<std::string> &v_words_embeddings, \
+									 std::vector<std::string> &v_parameters_of_bpe) {
   namespace p_options = boost::program_options;
   description.add_options() 
     ("help", "NiuTrans.NMT Usage\n")
@@ -1536,7 +1579,8 @@ void GlobalConfiguration::AddOptions(boost::program_options::options_description
     ("print-align-scores", p_options::value<bool>(&print_alignments_scores_mode_), "Output all alignments scores\n DEFAULT: False\n")
     ("longest-sent", p_options::value<int>(&longest_sentence_), "Maximum sentence length\n DEFAULT: 100")
     ("tmp-dir-location", p_options::value<std::string>(&tmp_location_), "Specify the tmp location\n DEFAULT: ./")
-    ("log", p_options::value<std::string>(&output_log_file_name_), "Print out informations\n <file>");  
+    ("log", p_options::value<std::string>(&output_log_file_name_), "Print out informations\n <file>\n")
+	("train-bpe", p_options::value<std::vector<std::string> >(&v_parameters_of_bpe)->multitoken(), "Train bpe\n <vocab> <min-freq> <input> <output>");  
 }
 
 

@@ -31,6 +31,7 @@
 #include "average_models.h"
 #include "replace_vocabulary.h"
 #include "word_embedding.h"
+#include "byte_pair_encoding.h"
 
 
 namespace neural_machine_translation {
@@ -61,6 +62,9 @@ public:
 
 public:
   void DumpWordEmbedding(GlobalConfiguration &configuration);
+
+public:
+  void TrainBytePairEncoding(GlobalConfiguration &configuration);
 
 public:
   void ForceDecoding(GlobalConfiguration &configuration);

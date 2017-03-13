@@ -245,6 +245,16 @@ bool BasicMethod::RemoveExtraSpace(std::string &input_string, std::string &outpu
 }
 
 
+bool BasicMethod::RemoveAllSpace(const std::string &input_string, std::string &output_string) {
+  output_string = input_string;
+  std::string::size_type pos;
+  while ((pos = output_string.find(" ")) != std::string::npos) {
+    output_string.replace(pos, 1, "");
+  }
+  return true;
+}
+
+
 std::string BasicMethod::size_tToString(size_t &source) {
   std::stringstream oss;
   oss << source;

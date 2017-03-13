@@ -145,6 +145,13 @@ public:
   bool vocabulary_replacement_mode_ = false;
   bool dump_word_embedding_mode_ = false;
   bool training_perplexity_mode_ = true;     // Print out the train perplexity every epoch (or half epoch if you have a learning rate schedule)
+
+public:
+  bool train_bpe_mode_ = false;              // If you want to train bpe model
+  int bpe_vocabulary_size_ = 1000;           // Default 1000
+  int bpe_min_frequency_ = 2;                // Default 2
+  std::string bpe_input_file_name_;          // Input file name
+  std::string bpe_output_file_name_;         // Output file name
   
 public:
   bool sequence_to_sequence_mode_ = true;    // If true it is only a sequence-to-sequence model, not sequence
@@ -223,6 +230,9 @@ public:
   //bool print_score_mode_ = false;       // Whether to print the score of the hypotheses or not
   //bool print_alignment_mode_ = false;
   //bool print_unk_alignment_mode_ = false;
+
+public:
+  //std::vector<std::string> bpe_parameters_;                // parameters for bpe
 
 public:
   std::vector<std::string> decode_user_files_;             // source file being decoded 
@@ -359,6 +369,9 @@ public:
   void DumpWordEmbedding(boost::program_options::variables_map &v_map, std::vector<std::string> &v_words_embeddings);
 
 public:
+  void TrainBytePairEncoding(boost::program_options::variables_map &v_map, std::vector<std::string> &v_parameters_of_bpe);
+
+public:
   void OptionsSetByUser(boost::program_options::variables_map &v_map);
   void AddOptions(boost::program_options::options_description &description, std::vector<std::string> &training_files, \
                   std::vector<std::string> &continue_train, std::vector<std::string> &test_files, \
@@ -367,7 +380,8 @@ public:
                   std::vector<int> &gpu_indices, std::vector<precision> &lower_upper_range, \
                   std::vector<std::string> &adaptive_learning_rate, std::vector<precision> &clip_cell_values, \
                   std::vector<std::string> &v_bleu_score, std::vector<std::string> &v_average_models, \
-                  std::vector<std::string> &v_vocabulary_replacement, std::vector<std::string> &v_words_embeddings);
+                  std::vector<std::string> &v_vocabulary_replacement, std::vector<std::string> &v_words_embeddings, \
+				  std::vector<std::string> &v_parameters_of_bpe);
 
 
 

@@ -72,6 +72,10 @@ void Dispatcher::Run(int argc, char **argv) {
     DumpWordEmbedding(configuration);
   }
 
+  if (configuration.train_bpe_mode_) {
+    TrainBytePairEncoding(configuration);
+  }
+
   logger<<"\n$$ End time\n"
         <<"   "<<system_time.GetCurrentSystemTime()<<"\n";
 }
@@ -559,6 +563,21 @@ void Dispatcher::DumpWordEmbedding(GlobalConfiguration &configuration) {
   WordEmbedding word_embedding;
   word_embedding.Process(configuration.word_embedding_model_file_name_, configuration.word_embedding_source_vocab_file_name_, \
                          configuration.word_embedding_target_vocab_file_name_);
+  return;
+}
+
+
+void Dispatcher::TrainBytePairEncoding(GlobalConfiguration &configuration) {
+  logger<<"\n$$ File Information\n"
+        <<"   Vocabulary Size          : "<<configuration.bpe_vocabulary_size_<<"\n"
+        <<"   Min Frequency            : "<<configuration.bpe_min_frequency_<<"\n"
+        <<"   Input File Name          : "<<configuration.bpe_input_file_name_<<"\n"
+        <<"   Output File Name         : "<<configuration.bpe_output_file_name_<<"\n";
+
+  BytePairEncoding byte_pair_encoding;
+  byte_pair_encoding.Train(configuration.bpe_vocabulary_size_, configuration.bpe_min_frequency_, 
+                           configuration.bpe_input_file_name_, configuration.bpe_output_file_name_);
+
   return;
 }
 

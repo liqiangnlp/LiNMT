@@ -22,7 +22,6 @@
 
 #include "debug.h"
 
-
 namespace cc_util {
 
 void GetFileStats(int &num_lines_in_file, int &total_words, std::ifstream &input_file, int &total_target_words);
@@ -92,12 +91,11 @@ public:
 
 public:
   bool RemoveExtraSpace(std::string &input_string, std::string &output_string);
+  bool RemoveAllSpace(const std::string &input_string, std::string &output_string);
 
 public:
   std::string size_tToString(size_t &source);
 
-
-  
 };
 
 } // end of neural_machine_translation namespace
