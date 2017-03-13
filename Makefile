@@ -47,7 +47,9 @@ SOURCE_CODE = $(SOURCE_CODE_FOLDER)main.cu \
               $(SOURCE_CODE_FOLDER)ibm_bleu_score.cc \
               $(SOURCE_CODE_FOLDER)average_models.cc \
               $(SOURCE_CODE_FOLDER)replace_vocabulary.cc \
-              $(SOURCE_CODE_FOLDER)word_embedding.cc
+              $(SOURCE_CODE_FOLDER)word_embedding.cc \
+              $(SOURCE_CODE_FOLDER)byte_pair_encoding.cc 
+
 
 
 NiuTrans.NMT:
