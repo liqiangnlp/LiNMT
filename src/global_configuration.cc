@@ -142,7 +142,7 @@ void GlobalConfiguration::ParseCommandLine(int argc, char **argv) {
       DumpWordEmbedding(v_map, v_words_embeddings);
     }
 
-    if (v_map.count("train-bpe")) {
+    if (v_map.count("bpe-train")) {
       TrainBytePairEncoding(v_map, v_parameters_of_bpe);
     }
 
@@ -173,7 +173,7 @@ void GlobalConfiguration::NormalSettingsAndChecking(boost::program_options::opti
         v_map.count("force-decoding") || v_map.count("postprocess-unk") || \
         v_map.count("bleu") || v_map.count("average-models") || \
         v_map.count("vocab-replacement") || v_map.count("word-embedding") || \
-        v_map.count("stoch-gen") || v_map.count("train-bpe"))) {
+        v_map.count("stoch-gen") || v_map.count("bpe-train"))) {
     logger<<"Please use \n"
           <<"   $./NiuTrans.NMT --help\n";
     exit(EXIT_FAILURE);
@@ -191,7 +191,7 @@ void GlobalConfiguration::NormalSettingsAndChecking(boost::program_options::opti
 
   if (v_map.count("average-models") || v_map.count("postprocess-unk") || \
 	  v_map.count("bleu") || v_map.count("vocab-replacement") || \
-      v_map.count("word-embedding") || v_map.count("train-bpe")){
+      v_map.count("word-embedding") || v_map.count("bpe-train")){
     return;
   }
 
@@ -1502,7 +1502,7 @@ void GlobalConfiguration::AddOptions(boost::program_options::options_description
                                      std::vector<std::string> &adaptive_learning_rate, std::vector<precision> &clip_cell_values, \
                                      std::vector<std::string> &v_bleu_score, std::vector<std::string> &v_average_models, \
                                      std::vector<std::string> &v_vocabulary_replacement, std::vector<std::string> &v_words_embeddings, \
-									 std::vector<std::string> &v_parameters_of_bpe) {
+                                     std::vector<std::string> &v_parameters_of_bpe) {
   namespace p_options = boost::program_options;
   description.add_options() 
     ("help", "NiuTrans.NMT Usage\n")
@@ -1580,7 +1580,7 @@ void GlobalConfiguration::AddOptions(boost::program_options::options_description
     ("longest-sent", p_options::value<int>(&longest_sentence_), "Maximum sentence length\n DEFAULT: 100")
     ("tmp-dir-location", p_options::value<std::string>(&tmp_location_), "Specify the tmp location\n DEFAULT: ./")
     ("log", p_options::value<std::string>(&output_log_file_name_), "Print out informations\n <file>\n")
-	("train-bpe", p_options::value<std::vector<std::string> >(&v_parameters_of_bpe)->multitoken(), "Train bpe\n <vocab> <min-freq> <input> <output>");  
+	("bpe-train", p_options::value<std::vector<std::string> >(&v_parameters_of_bpe)->multitoken(), "Train bpe\n <vocab-size> <min-freq> <input> <output>");  
 }
 
 

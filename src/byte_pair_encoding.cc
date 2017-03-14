@@ -186,7 +186,7 @@ void BytePairEncoding::GetVocabulary(std::ifstream &in_file) {
       ++hm_vocabulary_[char_tmp];
     }
     if (line_num % 1000 == 0) {
-      logger<<"\r   Process "<<line_num<<"lines";
+      logger<<"\r   Process "<<line_num<<" lines";
     }
   }
   logger<<"\r   Process "<<line_num<<" lines\n";
@@ -209,8 +209,9 @@ void BytePairEncoding::GetBigramVocabulary() {
     std::vector<std::string> char_tmp;
     basic_method_.Split(v_p_vocabulary_.at(i).first, ' ', char_tmp);
     if (char_tmp.size() < 2) {
-      std::cerr<<"   Error: the size of char_tmp cannot less than 2!\n";
-      exit(EXIT_FAILURE);
+      logger<<"   Warning: the size of char_tmp cannot less than 2!\n";
+      logger<<"   char_tmp="<<v_p_vocabulary_.at(i).first<<"\n";
+      continue;
     } else {
       std::string previous_char = char_tmp.at(0);
       for (int j = 1; j < char_tmp.size(); ++j) {
