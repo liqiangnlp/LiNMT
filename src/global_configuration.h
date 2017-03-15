@@ -148,8 +148,10 @@ public:
 
 public:
   bool train_bpe_mode_ = false;              // If you want to train bpe model
+  bool segment_bpe_mode_ = false;            // use bpe codes to segment
   int bpe_vocabulary_size_ = 1000;           // Default 1000
   int bpe_min_frequency_ = 2;                // Default 2
+  std::string bpe_input_codes_file_name_;    // Input codes file name
   std::string bpe_input_file_name_;          // Input file name
   std::string bpe_output_file_name_;         // Output file name
   
@@ -370,6 +372,7 @@ public:
 
 public:
   void TrainBytePairEncoding(boost::program_options::variables_map &v_map, std::vector<std::string> &v_parameters_of_bpe);
+  void SegmentBytePairEncoding(boost::program_options::variables_map &v_map, std::vector<std::string> &v_parameters_of_bpe);
 
 public:
   void OptionsSetByUser(boost::program_options::variables_map &v_map);

@@ -2,7 +2,7 @@
  *
  * Author: Qiang Li
  * Email : liqiangneu@gmail.com
- * Date  : 08/08/2017
+ * Date  : 03/14/2017
  * Time  : 15:18
  *
  */
@@ -15,6 +15,7 @@
 //#include <hash_map>
 #include <unordered_map>
 #include <map>
+#include <set>
 
 #include "utility_cu.h"
 #include "utility_cc.h"
@@ -80,6 +81,12 @@ public:
   std::unordered_map<std::string, std::unordered_map<int, int>> hm_bigram_indices_;
 
 public:
+  std::unordered_map<std::string, int> hm_codes_;
+
+public:
+  std::string separator_ = "@@";
+
+public:
   int vocabulary_size_ = 0;
   int min_frequency_ = 0;
 
@@ -93,6 +100,7 @@ public:
 
 public:
   void Train(const int &vocabulary_size, const int &min_frequency, const std::string &input_file_name, const std::string &output_file_name);
+  void Segment(const std::string &input_codes_file_name, const std::string &input_file_name, const std::string &output_file_name);
 
 private:
   void TrainBpe(std::ofstream &out_file, std::ofstream &out_log);
@@ -109,6 +117,13 @@ private:
 private:
   //void GetMaxValueHashMap(const std::hash_map<std::string, int> &in_hash_map, std::string &out_key, int &out_max_value);
   void GetMaxValueHashMap(const std::unordered_map<std::string, int> &in_hash_map, std::string &out_key, int &out_max_value);
+
+private:
+  void LoadCodes(std::ifstream &in_codes_file);
+  void SegmentBpe(const std::string &input_sentence, std::string &output_sentence);
+  void EncodeBpe(const std::string &input_word, std::string &output_string);
+  void GetBigramSet(const std::vector<std::string> &v_characters, std::set<std::string> &s_bigrams);
+  void GetMinBigram(const std::set<std::string> &s_bigrams, std::string &bigram);
 };
 
 } // End of namespace neural_machine_translation

@@ -65,6 +65,7 @@ public:
 
 public:
   void TrainBytePairEncoding(GlobalConfiguration &configuration);
+  void SegmentBytePairEncoding(GlobalConfiguration &configuration);
 
 public:
   void ForceDecoding(GlobalConfiguration &configuration);

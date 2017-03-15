@@ -2,7 +2,7 @@
  *
  * Author: Qiang Li
  * Email : liqiangneu@gmail.com
- * Date  : 08/08/2017
+ * Date  : 03/14/2017
  * Time  : 15:18
  *
  */
@@ -83,6 +83,66 @@ void BytePairEncoding::Train(const int &vocabulary_size, const int &min_frequenc
   GetBigramVocabulary();
 
   TrainBpe(out_file, out_log);
+
+  in_file.close();
+  out_file.close();
+  out_log.close();
+  return;
+}
+
+
+void BytePairEncoding::Segment(const std::string &input_codes_file_name, const std::string &input_file_name, const std::string &output_file_name) {
+  std::ifstream in_codes_file(input_codes_file_name.c_str());
+  if (!in_codes_file) {
+    logger<<"   Error: can not open "<<input_codes_file_name<<"\n";
+    exit(EXIT_FAILURE);
+  }
+  LoadCodes(in_codes_file);
+  in_codes_file.close();
+
+
+  std::ifstream in_file(input_file_name.c_str());
+  if (!in_file) {
+    logger<<"   Error: can not open "<<input_file_name<<"\n";
+    exit(EXIT_FAILURE);
+  }
+
+  std::ofstream out_file(output_file_name.c_str());
+  if (!out_file) {
+    logger<<"   Error: can not open "<<output_file_name<<"\n";
+    exit(EXIT_FAILURE);
+  }
+
+  std::string output_log_file_name = output_file_name + ".log";
+  std::ofstream out_log(output_log_file_name.c_str());
+  if (!out_log) {
+    logger<<"   Error: can not open "<<output_log_file_name<<"\n";
+    exit(EXIT_FAILURE);
+  }
+
+  std::chrono::time_point<std::chrono::system_clock> start_total, end_total;
+  std::chrono::duration<double> elapsed_seconds;
+  start_total = std::chrono::system_clock::now();    // start time
+
+  logger<<"\n$$ Segment\n";
+  std::string input_sentence;
+  int i = 0;
+  while (std::getline(in_file, input_sentence)) {
+    ++i;
+    basic_method_.ClearIllegalChar(input_sentence);
+    basic_method_.RmStartSpace(input_sentence);
+    basic_method_.RmEndSpace(input_sentence);
+    std::string output_sentence;
+    SegmentBpe(input_sentence, output_sentence);
+    out_file<<output_sentence<<"\n"<<std::flush;
+    end_total = std::chrono::system_clock::now();    // start time
+    elapsed_seconds = end_total - start_total;
+
+    if (i % 1000 == 0) {
+      logger<<"\r   "<<i<<" sentences, "<<(float)i/elapsed_seconds.count()<<" sentences/s";
+    }
+  }
+  logger<<"\r   "<<i<<" sentences, "<<(float)i/elapsed_seconds.count()<<" sentences/s\n";
 
   in_file.close();
   out_file.close();
@@ -384,6 +444,156 @@ void BytePairEncoding::GetMaxValueHashMap(const std::unordered_map<std::string, 
   }
   return;
 }
+
+
+void BytePairEncoding::LoadCodes(std::ifstream &in_codes_file) {
+  std::string line;
+  std::vector<std::string> v_code;
+  while (std::getline(in_codes_file, line)) {
+    basic_method_.ClearIllegalChar(line);
+    basic_method_.RmStartSpace(line);
+    basic_method_.RmEndSpace(line);
+    v_code.push_back(line);
+  }
+
+  int i = v_code.size() - 1;
+  for (std::vector<std::string>::reverse_iterator r_iter = v_code.rbegin(); r_iter != v_code.rend(); ++r_iter) {
+    hm_codes_[*r_iter] = i;
+    --i;
+  }
+
+  return;
+}
+
+
+void BytePairEncoding::SegmentBpe(const std::string &input_sentence, std::string &output_sentence) {
+  std::vector<std::string> v_words;
+  basic_method_.Split(input_sentence, ' ', v_words);
+
+  output_sentence.clear();
+  int i;
+  for (i = 0; i < v_words.size(); ++i) {
+    std::string output_string;
+    EncodeBpe(v_words.at(i), output_string);
+    if (0 != i) {
+      output_sentence += " ";
+    }
+    output_sentence += output_string;
+  }
+
+  return;
+}
+
+
+void BytePairEncoding::EncodeBpe(const std::string &input_word, std::string &output_string) {
+  
+  output_string.clear();
+  std::wstring w_input_word = encoding_conversion_.UTF8ToUnicode(input_word.c_str());
+  std::wstring w_character;
+  std::vector<std::string> v_chars;
+  for (std::wstring::iterator iter = w_input_word.begin(); iter != w_input_word.end(); ++iter) {
+    w_character = *iter;
+    std::string character = encoding_conversion_.UnicodeToUTF8(w_character);
+    v_chars.push_back(character);
+  }
+  v_chars.push_back("</w>");
+
+  std::set<std::string> s_bigrams;
+  GetBigramSet(v_chars, s_bigrams);
+
+  while(true) {
+    std::string bigram;
+    GetMinBigram(s_bigrams, bigram);
+    if (bigram == "") {
+      break;
+    }
+
+    std::vector<std::string> v_bigram;
+    basic_method_.Split(bigram, ' ', v_bigram);
+    if (v_bigram.size() != 2) {
+      std::cerr<<"Warning: v_bigram.size() must be equal to 2!\n";
+      break;
+    }
+
+    std::vector<std::string> v_new_chars;
+    for (int i = 0; i < v_chars.size(); ++i) {
+      if (v_bigram.at(0) != v_chars.at(i)) {
+        v_new_chars.push_back(v_chars.at(i));
+        continue;
+      } else {
+        if (i < v_chars.size() - 1 && v_chars.at(i + 1) == v_bigram.at(1)) {
+          v_new_chars.push_back(v_bigram.at(0) + v_bigram.at(1));
+          ++i;
+        } else {
+          v_new_chars.push_back(v_chars.at(i));
+        }
+      }
+    }
+
+    v_chars.clear();
+    v_chars = v_new_chars;
+    if (1 == v_chars.size()) {
+      break;
+    } else {
+      GetBigramSet(v_chars, s_bigrams);
+    }
+  }
+
+  int i;
+  for (i = 0; i < v_chars.size(); ++i) {
+    if (v_chars.at(i) != "</w>") {
+      if(0 != i) {
+        output_string += "@@ ";
+      }
+      std::string::size_type pos;
+      if ((pos = v_chars.at(i).find("</w>")) != std::string::npos) {
+        std::string current_wo_eow = v_chars.at(i);
+        current_wo_eow.replace(pos, 4, "");
+        output_string += current_wo_eow;
+      } else {
+        output_string += v_chars.at(i);
+      }
+    } else {
+      continue;
+    }
+  }
+
+  return;
+}
+
+
+void BytePairEncoding::GetBigramSet(const std::vector<std::string> &v_characters, std::set<std::string> &s_bigrams) {
+  if (v_characters.size() < 2) {
+    std::cerr<<"Warning: v_characters size can not less than 2!\n";
+    return;
+  }
+  s_bigrams.clear();
+  std::string previous_char = v_characters.at(0);
+  for (int i = 1; i < v_characters.size(); ++i) {
+    std::string pair = previous_char + " " + v_characters.at(i);
+    s_bigrams.insert(pair);
+    previous_char = v_characters.at(i);
+  }
+  return;
+}
+
+
+void BytePairEncoding::GetMinBigram(const std::set<std::string> &s_bigrams, std::string &bigram) {
+  int bigram_score = INT_MAX;
+  for (std::set<std::string>::const_iterator iter = s_bigrams.begin(); iter != s_bigrams.end(); ++iter) {
+    if (hm_codes_.find(*iter) != hm_codes_.end() && hm_codes_[*iter] < bigram_score) {
+      bigram_score = hm_codes_[*iter];
+      bigram = *iter;
+    }
+  }
+  return;
+}
+
+
+
+
+
+
 
 
 

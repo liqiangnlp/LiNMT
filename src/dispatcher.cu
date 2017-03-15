@@ -40,10 +40,6 @@ void Dispatcher::Run(int argc, char **argv) {
     ForceDecoding(configuration);
   }
 
-  //if (!configuration.sequence_to_sequence_mode_ && configuration.stochastic_generation_mode_) {
-  //  ;
-  //}
-
   if (configuration.decode_mode_) {
     Decoding(configuration);
   }
@@ -74,6 +70,10 @@ void Dispatcher::Run(int argc, char **argv) {
 
   if (configuration.train_bpe_mode_) {
     TrainBytePairEncoding(configuration);
+  }
+
+  if (configuration.segment_bpe_mode_) {
+    SegmentBytePairEncoding(configuration);
   }
 
   logger<<"\n$$ End time\n"
@@ -579,6 +579,17 @@ void Dispatcher::TrainBytePairEncoding(GlobalConfiguration &configuration) {
                            configuration.bpe_input_file_name_, configuration.bpe_output_file_name_);
 
   return;
+}
+
+
+void Dispatcher::SegmentBytePairEncoding(GlobalConfiguration &configuration) {
+  logger<<"\n$$ File Information\n"
+        <<"   Input Codes File Name    : "<<configuration.bpe_input_codes_file_name_<<"\n"
+        <<"   Input File Name          : "<<configuration.bpe_input_file_name_<<"\n"
+        <<"   Output File Name         : "<<configuration.bpe_output_file_name_<<"\n";
+
+  BytePairEncoding byte_pair_encoding;
+  byte_pair_encoding.Segment(configuration.bpe_input_codes_file_name_, configuration.bpe_input_file_name_, configuration.bpe_output_file_name_);
 }
 
 
