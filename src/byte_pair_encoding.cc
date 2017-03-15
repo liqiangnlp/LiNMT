@@ -113,12 +113,14 @@ void BytePairEncoding::Segment(const std::string &input_codes_file_name, const s
     exit(EXIT_FAILURE);
   }
 
+  /*
   std::string output_log_file_name = output_file_name + ".log";
   std::ofstream out_log(output_log_file_name.c_str());
   if (!out_log) {
     logger<<"   Error: can not open "<<output_log_file_name<<"\n";
     exit(EXIT_FAILURE);
   }
+  */
 
   std::chrono::time_point<std::chrono::system_clock> start_total, end_total;
   std::chrono::duration<double> elapsed_seconds;
@@ -146,7 +148,9 @@ void BytePairEncoding::Segment(const std::string &input_codes_file_name, const s
 
   in_file.close();
   out_file.close();
+  /*
   out_log.close();
+  */
   return;
 }
 
