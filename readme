@@ -42,7 +42,8 @@
    $ ./b2
    $ sudo mkdir /usr/local/boost-1.55.0
    $ sudo ./b2 install --prefix=/usr/local/boost-1.55.0
-
+   $ sudo vi /etc/profile.d/boost.sh
+   # export LD_LIBRARY_PATH=/usr/local/boost-1.55.0/lib/:$LD_LIBRARY_PATH
 
 4. Install CUDA_8.0 or CUDA_7.5
 
