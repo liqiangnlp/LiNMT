@@ -113,7 +113,7 @@ void GlobalConfiguration::ParseCommandLine(int argc, char **argv) {
     }
 
     if (v_map.count("decoding-sentence")) {
-      DecodingSentence(v_map, v_decoding_sentences, decoding_ratio, gpu_indices);
+      DecodingSentence(v_decoding_sentences);
       return;
     }
 
@@ -192,7 +192,7 @@ void GlobalConfiguration::NormalSettingsAndChecking(boost::program_options::opti
   if (v_map.count("average-models") || v_map.count("postprocess-unk") || \
 	  v_map.count("bleu") || v_map.count("vocab-replacement") || \
       v_map.count("word-embedding") || v_map.count("bpe-train") || \
-      v_map.count("bpe-segment")){
+      v_map.count("bpe-segment") || v_map.count("decoding-sentence")) {
     return;
   }
 
@@ -1047,99 +1047,19 @@ void GlobalConfiguration::Decoding(boost::program_options::variables_map &v_map,
 }
 
 
-void GlobalConfiguration::DecodingSentence(boost::program_options::variables_map &v_map, std::vector<std::string> &v_decoding_sentences, \
-                                           std::vector<precision> &decoding_ratio, std::vector<int> &gpu_indices) {
+void GlobalConfiguration::DecodingSentence(std::vector<std::string> &v_decoding_sentences) {
 
   logger<<"\n$$ Decoding sentence mode\n";
 
-  if (print_decoding_information_mode_) {
-
-    unk_replacement_mode__ = true;
-    for (int i = 0; i < beam_size_; ++i) {
-      viterbi_alignments__.push_back(-1);
-    }
-    for (int i = 0; i < beam_size_ * longest_sentence_; ++i) {
-      alignment_scores__.push_back(0);
-    }
-    p_host_align_indices__ = (int*)malloc((2 * attention_configuration_.d_ + 1) * beam_size_ * sizeof(int));
-    p_host_alignment_values__ = (precision*)malloc((2 * attention_configuration_.d_ + 1) * beam_size_ * sizeof(precision));
-  }
-
-  if (v_decoding_sentences.size() < 3) {
-    logger<<"Error: at least 3 arguements must be entered for --decoding-sentence\n"\
-            "       1 k-best, 2 NMT model, 3 kbest file\n";
+  if (v_decoding_sentences.size() != 3) {
+    logger<<"Error: --decoding-sentence takes three arguements.\n"
+          <<" <config> <input> <output>\n";
     exit(EXIT_FAILURE);
   }
 
-  boost::filesystem::path unique_path = boost::filesystem::unique_path();
-  if (v_map.count("tmp-dir-location")) {
-    unique_path = boost::filesystem::path(tmp_location_ + unique_path.string());
-  }
-
-  boost::filesystem::create_directories(unique_path);
-  unique_dir_ = unique_path.string();
-  logger<<"\n$$ Directory Information\n"
-        <<"   Tmp directory            : "<<unique_dir_<<"\n";
-
-  hypotheses_number_ = std::stoi(v_decoding_sentences[0]);
-  decoder_output_file_ = v_decoding_sentences.back() + "-int";
-  decoder_final_file_ = v_decoding_sentences.back();
-  logger<<"\n$$ Translation Results Information\n"
-        <<"   Kbest                    : "<<hypotheses_number_<<"\n"
-        <<"   Integerize output        : "<<decoder_output_file_<<"\n"
-        <<"   Final output             : "<<decoder_final_file_<<"\n";
-
-
-  // each model must be specified a gpu, default all is gpu 0
-  if (v_map.count("multi-gpu")) {
-    if (gpu_indices.size() != v_decoding_sentences.size() - 2) {
-      logger<<"Error: for decoding-sentence, each model must be specified a gpu\n";
-      boost::filesystem::path tmp_path(unique_dir_);
-      boost::filesystem::remove_all(tmp_path);
-      exit(EXIT_FAILURE);
-    }
-    gpu_indices_ = gpu_indices;
-  }
-  else {
-    for (int i = 0; i < v_decoding_sentences.size() - 2; ++i) {
-      gpu_indices_.push_back(0);
-    }
-  }
-
-  if (beam_size_ <= 0) {
-    logger<<"Error: beam-size must be greater than zero\n";
-    boost::filesystem::path tmp_path(unique_dir_);
-    boost::filesystem::remove_all(tmp_path);
-    exit(EXIT_FAILURE);
-  }
-
-  if (penalty_ < 0) {
-    logger<<"Error: penalty must be greater than zero\n";
-    boost::filesystem::path tmp_path(unique_dir_);
-    boost::filesystem::remove_all(tmp_path);
-    exit(EXIT_FAILURE);
-  }
-
-  if (v_map.count("dump-lstm")) {
-    dump_lstm_mode_ = true;
-  }
-
-  if (v_map.count("decoding-ratio")) {
-    if (decoding_ratio.size() != 2) {
-      logger<<"Error: only two inputs for decoding-ratio, now is "<<decoding_ratio.size()<<"\n";
-      boost::filesystem::path tmp_path(unique_dir_);
-      boost::filesystem::remove_all(tmp_path);
-      exit(EXIT_FAILURE);
-    }
-    min_decoding_ratio_ = decoding_ratio[0];
-    max_decoding_ratio_ = decoding_ratio[1];
-    if (min_decoding_ratio_ >= max_decoding_ratio_) {
-      logger<<"Error: min decoding ratio must be less than max_decoding_ratio\n";
-      boost::filesystem::path tmp_path(unique_dir_);
-      boost::filesystem::remove_all(tmp_path);
-      exit(EXIT_FAILURE);
-    }
-  }
+  decode_sentence_config_file_ = v_decoding_sentences.at(0);
+  decode_sentence_input_file_ = v_decoding_sentences.at(1);
+  decode_sentence_output_file_ = v_decoding_sentences.at(2);
 
   training_mode_ = false;
   decode_mode_ = false;
@@ -1556,7 +1476,7 @@ void GlobalConfiguration::AddOptions(boost::program_options::options_description
     ("decoding", p_options::value<std::vector<std::string> >(&kbest_files)->multitoken(), "Decoding sentences in files\n"\
     " <paths> <m1> ... <mn> <output>")
     ("decoding-sentence", p_options::value<std::vector<std::string> >(&v_decoding_sentences)->multitoken(), "Decoding sentence by sentence\n"\
-    " <paths> <m1> ... <mn> <output>")
+    " <config> <input> <output>")
     ("force-decoding", p_options::value<std::vector<std::string> >(&test_files)->multitoken(), "Force decoding\n"\
     " NMT: <src> <tgt> <model> <output>\n"\
     " NLM: <tgt> <model> <output>")
@@ -1714,9 +1634,17 @@ void GlobalConfiguration::PrintDecodingParameters() {
 
 
 void GlobalConfiguration::PrintDecodingSentParameters() {
-  logger<<"\n$$ Decode Sentence Information\n"
+  logger<<"\n$$ Decoding Information\n"
+        <<"   Kbest number             : "<<hypotheses_number_<<"\n"
         <<"   Beam size                : "<<beam_size_<<"\n"
-        <<"   Kbest number             : "<<hypotheses_number_<<"\n";      
+        <<"   Target vocab size        : "<<target_vocab_size_<<"\n"
+        <<"   Penalty                  : "<<penalty_<<"\n"
+        <<"   Decoding ratio           : "<<min_decoding_ratio_<<" "<<max_decoding_ratio_<<"\n"
+        <<"   Length normalization     : "<<decoding_lp_alpha_<<"\n"
+        <<"   Penalty beta             : "<<decoding_cp_beta_<<"\n"
+        <<"   Longest sentence         : "<<longest_sentence_<<"\n"
+        <<"   Print information        : "<<print_decoding_information_mode_<<"\n"
+        <<"   Print alignment scores   : "<<print_alignments_scores_mode_<<"\n";
   return;
 }
 

@@ -95,6 +95,8 @@ public:
 
 public:
   std::string size_tToString(size_t &source);
+  std::string IntToString(int &source);
+  std::string FloatToString(float &source);
 
 };
 

@@ -6,7 +6,6 @@
  * Time  : 11:18
  *
  */
-
 #ifndef DECODER_H_
 #define DECODER_H_
 
@@ -15,19 +14,17 @@
 #include <queue>
 #include <vector>
 
-#include <Eigen/Core>
-
 #include "global_configuration.h"
-
 #include "deep_rnn.h"
 #include "file_helper.h"
 #include "file_helper_decoder.h"
 
 
-#define UNCONST(t,c,uc) Eigen::MatrixBase<t> &uc = const_cast<Eigen::MatrixBase<t>&>(c);
-
 
 namespace neural_machine_translation {
+
+#define UNCONST(t,c,uc) Eigen::MatrixBase<t> &uc = const_cast<Eigen::MatrixBase<t>&>(c);
+
 
 // the decoder object type
 template <typename T>
@@ -213,6 +210,11 @@ public:
             T min_decoding_ratio, T penalty, std::string output_file_name, int num_hypotheses, \
             bool print_decoding_information_mode, bool print_alignments_scores_mode);
 
+  void InitDecoderSentence(int beam_size, int vocab_size, int start_symbol, int end_symbol, int max_decoding_length, \
+                           T min_decoding_ratio, T penalty, std::string output_file_name, int num_hypotheses, \
+                           bool print_decoding_information_mode, bool print_alignments_scores_mode);
+
+
 public:
   void InitDecoder();
 
@@ -234,6 +236,7 @@ public:
 
 public:
   void OutputKBestHypotheses(int source_length, T lp_alpha, T cp_beta);
+  void ObtainOneBestHypothesis(int source_length, T lp_alpha, T cp_beta, std::string &output_sentence);
 
 
 };
@@ -259,6 +262,43 @@ void Decoder<T>::Init(int beam_size, int vocab_size, int start_symbol, int end_s
 
   output_.open(output_file_name.c_str());
   output_<<std::fixed<<std::setprecision(3);
+
+  eigen_current_indices_.resize(beam_size);
+    
+  eigen_top_sentences_.resize(beam_size, max_decoding_length);
+  eigen_top_sentences_tmp_.resize(beam_size, max_decoding_length);
+
+  eigen_top_sentences_viterbi_.resize(beam_size, max_decoding_length);
+  eigen_top_sentences_viterbi_tmp_.resize(beam_size, max_decoding_length);
+
+  eigen_top_sentences_alignments_scores_.resize(beam_size, max_decoding_length);
+  eigen_top_sentences_alignments_scores_tmp_.resize(beam_size, max_decoding_length);
+
+  eigen_top_sentences_scores_.resize(beam_size);
+  eigen_top_sentences_scores_tmp_.resize(beam_size);
+
+  eigen_new_indices_changes_.resize(beam_size);
+
+  p_host_current_indices_ = (int *)malloc(beam_size * 1 * sizeof(int));
+}
+
+
+template <typename T>
+void Decoder<T>::InitDecoderSentence(int beam_size, int vocab_size, int start_symbol, int end_symbol, int max_decoding_length, \
+                                     T min_decoding_ratio, T penalty, std::string output_file_name, int num_hypotheses, \
+                                     bool print_decoding_information_mode, bool print_alignments_scores_mode) {
+
+  beam_size_ = beam_size;
+  vocab_size_ = vocab_size;
+  start_symbol_ = start_symbol;
+  end_symbol_ = end_symbol;
+  max_decoding_length_ = max_decoding_length;
+  min_decoding_ratio_ = min_decoding_ratio;
+  penalty_ = penalty;
+  num_hypotheses_ = num_hypotheses;
+
+  print_decoding_information_mode_ = print_decoding_information_mode;
+  print_alignments_scores_mode_ = print_alignments_scores_mode;
 
   eigen_current_indices_.resize(beam_size);
     
@@ -638,6 +678,143 @@ void Decoder<T>::OutputKBestHypotheses(int source_length, T lp_alpha, T cp_beta)
 }
 
 
+template <typename T>
+void Decoder<T>::ObtainOneBestHypothesis(int source_length, T lp_alpha, T cp_beta, std::string &output_sentence) {
+
+  std::priority_queue<KBest<T>, std::vector<KBest<T>>, KBestCompareFunctor> pq_best_hypotheses;
+
+  // length normalation, lp(Y) = ((5 + |Y|)^lp_alpha) / ((5 + 1)^lp_alpha)
+  if (0 != lp_alpha) {
+    for (int i = 0; i < v_hypotheses_.size(); ++i) {
+      T lp = powf((T)(5 + v_hypotheses_[i].eigen_hypothesis_.size()), lp_alpha) / powf((T)(5 + 1), lp_alpha);
+      v_hypotheses_[i].score_ /= lp;
+    }
+  }
+
+  // penalty, cp(X;Y) = cp_beta * sum_{i=1}^{|X|}log(min(sum_{j=1}^{|Y|}p_{i,j}, 1.0))
+  if (0 != cp_beta) {
+    for (int i = 0; i < v_hypotheses_.size(); ++i) {
+      // normalization, sum to 1.0
+      for (int j = 1; j < v_hypotheses_[i].eigen_hypothesis_.size() - 1; ++j) {
+        T sum = 0;
+        for (int k = 0; k < source_length; ++k) {
+          v_hypotheses_[i].eigen_alignments_scores_(j).at(k) += 0.01;
+          sum += v_hypotheses_[i].eigen_alignments_scores_(j).at(k);
+        }
+        for (int k = 0; k < source_length; ++k) {
+          v_hypotheses_[i].eigen_alignments_scores_(j).at(k) /= sum;
+        }
+      }  
+
+      //
+      T cp_x_y = 0;
+      for (int k = 0; k < source_length; ++k) {
+        T sum = 0;
+        for (int j = 1; j < v_hypotheses_[i].eigen_hypothesis_.size() - 1; ++j) {
+          sum += v_hypotheses_[i].eigen_alignments_scores_(j).at(k);
+        }
+
+        cp_x_y += std::log(std::min(sum, (T)1.0));
+      }
+      cp_x_y *= cp_beta;
+      if (cp_x_y < -20) {
+        cp_x_y = -20;
+      }
+      v_hypotheses_[i].score_ += cp_x_y;
+    }
+  }
+
+
+  T len_ratio;
+  for (int i = 0; i < v_hypotheses_.size(); ++i) {
+    len_ratio = ((T)v_hypotheses_[i].eigen_hypothesis_.size()) / source_length;
+    if (len_ratio > min_decoding_ratio_) {
+      if (pq_best_hypotheses.size() < num_hypotheses_) {
+        pq_best_hypotheses.push(KBest<T>(-v_hypotheses_[i].score_, i));
+      } else {
+        if (-1 * pq_best_hypotheses.top().score_ < v_hypotheses_[i].score_) {
+          pq_best_hypotheses.pop();
+          pq_best_hypotheses.push(KBest<T>(-v_hypotheses_[i].score_, i));
+        }
+      }
+    }
+  }
+
+  // for making k-best list descending
+  std::priority_queue<KBest<T>, std::vector<KBest<T>>, KBestCompareFunctor> pq_best_hypotheses_tmp;
+  while (!pq_best_hypotheses.empty()) {
+    pq_best_hypotheses_tmp.push(KBest<T>(-1 * pq_best_hypotheses.top().score_, pq_best_hypotheses.top().index_));
+    pq_best_hypotheses.pop();
+  }
+
+
+  BasicMethod basic_method;
+
+  while (!pq_best_hypotheses_tmp.empty()) {
+
+    bool first_word_flag = true;
+    for (int j = 1; j < v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_.size() - 1; ++j) {
+      if (first_word_flag) {
+        output_sentence += basic_method.IntToString(v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_(j));
+        first_word_flag = false;
+      } else {
+        output_sentence += " " + basic_method.IntToString(v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_(j));
+      }
+    }
+
+    if (print_decoding_information_mode_) {
+      output_sentence += " |||| " + basic_method.FloatToString(v_hypotheses_[pq_best_hypotheses_tmp.top().index_].score_);
+
+      output_sentence += " ||||";
+
+      int alignment_number = 0;
+      for (int j = 1; j < v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_.size() - 1; ++j) {
+        ++alignment_number;
+        output_sentence += " " + basic_method.IntToString(v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j));
+      }
+      if (0 == alignment_number) {
+        output_sentence += " ";
+      }
+
+      output_sentence += " ||||";
+      int unk_number = 0;
+      for (int j = 1; j < v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_.size() - 1; ++j) {
+        if (2 == v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_(j)) {
+          ++unk_number;
+          output_sentence += " " + basic_method.IntToString(v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j));
+        }
+      }
+      if (0 == unk_number) {
+        output_sentence += " -1";
+      }
+
+      if (print_alignments_scores_mode_) {
+        output_sentence += " ||||";
+        int alignments_scores_number = 0;
+        for (int j = 1; j < v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_.size() - 1; ++j) {
+          ++alignments_scores_number;
+          output_sentence += " ";
+          for (int k = 0; k < source_length; ++k) {
+            if (0 != k) {
+              output_sentence += "/";
+            }
+            output_sentence += basic_method.FloatToString(v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_alignments_scores_(j).at(k));
+          }
+        }
+        if (0 == alignments_scores_number) {
+          output_sentence += " ";
+        }
+      }
+    }
+    pq_best_hypotheses_tmp.pop();
+  }
+
+  return;
+}
+
+
+
+
 ////////////////////////// CLASS
 ////////////////////////// DecoderModelWrapper
 template <typename T>
@@ -708,11 +885,15 @@ public:
   void Init(int gpu_num, int beam_size, std::string main_weight_file, std::string multi_src_weight_file, std::string main_integerized_file, \
             std::string multi_source_integerized_file, int longest_sentence, GlobalConfiguration &config);
 
+  void InitDecoderSentence(int gpu_num, int beam_size, std::string main_weight_file, int longest_sentence, GlobalConfiguration &config);
+
+
 public:
   void ExtractModelInformation(std::string weights_file_name);          // get how many layers, hiddenstate size, vocab sizes, etc
 
 public:
   void MemcpyVocabIndices();
+  void MemcpyVocabIndicesSentence(const std::vector<int> &v_input_sentence_int);
 
 public:
   void ForwardPropSource();
@@ -783,6 +964,77 @@ void DecoderModelWrapper<T>::Init(int gpu_num, int beam_size, std::string main_w
     p_file_helper_multi_src_ = new FileHelperDecoder();
     p_file_helper_multi_src_->Init(multi_source_integerized_file, num_lines_in_file_, config.longest_sentence_);
   }
+
+  if (multi_source_mode_) {
+    CudaErrorWrapper(cudaMalloc((void **)&p_device_input_vocab_indices_source_bi_, longest_sentence * sizeof(int)), "DecoderModelWrapper::DecoderModelWrapper p_device_input_vocab_indices_source_bi_ failed\n");
+  }
+
+  // allocate the current indices
+  CudaErrorWrapper(cudaMalloc((void **)&p_device_current_indices_, beam_size * sizeof(int)), "DecoderModelWrapper::DecoderModelWrapper p_device_current_indices_ failed\n");
+
+  p_neuralmt_ = new NeuralMachineTranslation<T>();
+  p_neuralmt_->InitModelDecoding(lstm_size_, beam_size, source_vocab_size_, target_vocab_size_, \
+                                  num_layers_, main_weight_file, gpu_num, config, attention_model_mode_, \
+                                  feed_input_mode_, multi_source_mode_, combine_lstm_mode_, char_cnn_mode_);
+
+  // initialize additional stuff for model
+  p_neuralmt_->InitPreviousStates(num_layers_, lstm_size_, beam_size, gpu_num, multi_source_mode_);
+
+  // load in weights for the model
+  p_neuralmt_->LoadWeights();
+
+}
+
+
+template <typename T>
+void DecoderModelWrapper<T>::InitDecoderSentence(int gpu_num, int beam_size, std::string main_weight_file, int longest_sentence, GlobalConfiguration &config) {
+
+  gpu_number_ = gpu_num;
+  beam_size_ = beam_size;
+  longest_sentence_ = config.longest_sentence_;
+
+  main_weight_file_ = main_weight_file;
+  //multi_source_weight_file_ = multi_src_weight_file;
+  //main_integerized_file_ = main_integerized_file;
+  //multi_source_integerized_file_ = multi_source_integerized_file;
+
+  // now switch to the current GPU
+  cudaSetDevice(gpu_num);
+
+  // get model parameters from the model file
+  ExtractModelInformation(main_weight_file);
+
+  // allocate p_device_ones_
+  CudaErrorWrapper(cudaMalloc((void**)&p_device_ones_, beam_size * 1 * sizeof(int)), "DecoderModelWrapper::DecoderModelWrapper p_device_ones_ failed\n");
+  // set p_device_ones_ to all 1
+  OnesMatKernel<<<1, 256>>>(p_device_ones_, beam_size);
+  cudaDeviceSynchronize();
+
+  // allocate the output distribution on the CPU
+  p_host_outputdist_ = (T *)malloc(target_vocab_size_ * beam_size * sizeof(T));
+  eigen_outputdist_.resize(target_vocab_size_, beam_size);
+
+  // allocate the swap values
+  CudaErrorWrapper(cudaMalloc((void **)&p_device_tmp_swap_values_, lstm_size_ * beam_size * sizeof(T)), "DecoderModelWrapper::DecoderModelWrapper p_device_tmp_swap_values_ failed\n");
+
+  // allocate the input vocab indices
+  CudaErrorWrapper(cudaMalloc((void **)&p_device_input_vocab_indices_source_, longest_sentence * sizeof(int)), "DecoderModelWrapper::DecoderModelWrapper p_device_input_vocab_indices_source_ failed\n");
+
+  if (char_cnn_mode_) {
+    // char_cnn_mode_ is not written
+    ;
+  }
+
+  // now initialize the file input
+  p_file_helper_ = new FileHelperDecoder();
+  p_file_helper_->InitDecoderSentence(config.longest_sentence_);
+
+  /*
+  if (multi_source_integerized_file != "NULL") {
+    p_file_helper_multi_src_ = new FileHelperDecoder();
+    p_file_helper_multi_src_->Init(multi_source_integerized_file, num_lines_in_file_, config.longest_sentence_);
+  }
+  */
 
   if (multi_source_mode_) {
     CudaErrorWrapper(cudaMalloc((void **)&p_device_input_vocab_indices_source_bi_, longest_sentence * sizeof(int)), "DecoderModelWrapper::DecoderModelWrapper p_device_input_vocab_indices_source_bi_ failed\n");
@@ -914,6 +1166,46 @@ void DecoderModelWrapper<T>::MemcpyVocabIndices() {
   }
 }
 
+
+template <typename T>
+void DecoderModelWrapper<T>::MemcpyVocabIndicesSentence(const std::vector<int> &v_input_sentence_int) {
+  p_file_helper_->UseSentence(v_input_sentence_int);
+
+  source_length_ = p_file_helper_->sentence_length_;
+
+  if (multi_source_mode_) {
+    // multi_source_mode_ is not written
+  } else {
+    source_length_bi_ = 0;
+  }
+
+  cudaSetDevice(gpu_number_);
+
+  CudaErrorWrapper(cudaMemcpy(p_device_input_vocab_indices_source_, p_file_helper_->p_host_input_vocab_indices_source_, source_length_ * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indices 1\n");
+
+  if (multi_source_mode_) {
+    // multi_source_mode_ is not written
+  }
+
+  if (char_cnn_mode_) {
+    // char_cnn_mode_ is not written
+  }
+
+  if (attention_model_mode_) {
+    for (int i = 0; i < beam_size_; ++i) {
+      CudaErrorWrapper(cudaMemcpy(p_neuralmt_->decoder_attention_layer_.p_device_batch_information_ + i, \
+                       p_file_helper_->p_host_batch_information_, 1 * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indices 2\n");
+      CudaErrorWrapper(cudaMemcpy(p_neuralmt_->decoder_attention_layer_.p_device_batch_information_ + beam_size_ + i, \
+                       p_file_helper_->p_host_batch_information_ + 1, 1 * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indices 2\n");
+
+      if (multi_source_mode_) {
+        // multi_source_mode_ is not written
+      }
+    }
+  }
+}
+
+
 template <typename T>
 void DecoderModelWrapper<T>::ForwardPropSource() {
   p_neuralmt_->ForwardPropSource(p_device_input_vocab_indices_source_, p_device_input_vocab_indices_source_bi_, \
@@ -1031,12 +1323,74 @@ public:
             T diversity, bool dump_sentence_embedding_mode, \
             std::string &sentence_embedding_file_name, GlobalConfiguration &config);
 
+  void InitDecoderSentence(std::vector<std::string> weight_file_names, int num_hypotheses, int beam_size, T min_decoding_ratio, \
+                           T penalty, int longest_sentence, bool print_decoding_information_mode, \
+                           bool print_alignments_scores_mode, \
+                           std::string decoder_output_file, std::vector<int> v_gpu_nums, \
+                           T max_decoding_ratio, int target_vocab_size, T lp_alpha, T cp_beta, \
+                           T diversity, bool dump_sentence_embedding_mode, \
+                           std::string &sentence_embedding_file_name, GlobalConfiguration &config);
+
 public:
   void DecodeFile();
+  void DecodeSentence(const std::vector<int> &v_input_sentence_int, std::string &output_sentence);
 
 public:
   void EnsemblesModels();
 };
+
+
+template <typename T>
+void EnsembleFactory<T>::InitDecoderSentence(std::vector<std::string> weight_file_names, int num_hypotheses, int beam_size, T min_decoding_ratio, \
+                                             T penalty, int longest_sentence, bool print_decoding_information_mode, \
+                                             bool print_alignments_scores_mode, \
+                                             std::string decoder_output_file, std::vector<int> v_gpu_nums, \
+                                             T max_decoding_ratio, int target_vocab_size, T lp_alpha, T cp_beta, \
+                                             T diversity, bool dump_sentence_embedding_mode, \
+                                             std::string &sentence_embedding_file_name, GlobalConfiguration &config) {
+  // Get the target vocab from the first file
+  target_vocab_size_ = target_vocab_size;
+  max_decoding_ratio_ = max_decoding_ratio;
+  longest_sentence_ = longest_sentence;
+
+  lp_alpha_ = lp_alpha;
+  cp_beta_ = cp_beta;
+  diversity_ = diversity;
+
+  dump_sentence_embedding_mode_ = dump_sentence_embedding_mode;
+  if (dump_sentence_embedding_mode_) {
+    out_sentence_embedding_.open(sentence_embedding_file_name);
+    out_sentence_embedding_<<std::fixed<<std::setprecision(9);
+  }
+
+  // to make sure beam search does halt
+  if (beam_size > (int)std::sqrt(target_vocab_size)) {
+    beam_size = (int)std::sqrt(target_vocab_size);
+  }
+
+  p_decoder_ = new Decoder<T>();
+  p_decoder_->InitDecoderSentence(beam_size, target_vocab_size, start_symbol_, end_symbol_, \
+                                  longest_sentence, min_decoding_ratio, penalty, decoder_output_file, \
+                                  num_hypotheses, print_decoding_information_mode, print_alignments_scores_mode);
+
+  // initialize all of the models
+  DecoderModelWrapper<T> decoder_model_wrapper;
+  decoder_model_wrapper.InitDecoderSentence(v_gpu_nums[0], beam_size, config.model_names_[0], longest_sentence, config);
+  v_models_.push_back(decoder_model_wrapper);
+
+  // check to be sure all modes have the same target vocab size and vocab indices and get the target vocab size
+  target_vocab_size_ = v_models_[0].target_vocab_size_;
+  for (int i = 0; i < v_models_.size(); ++i) {
+    if (v_models_[0].target_vocab_size_ != target_vocab_size) {
+      logger<<"Error: The target vocabulary sizes are not same in ensemble\n";
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  // resize the outputdist that gets sent to the decoder
+  eigen_outputdist_.resize(target_vocab_size, beam_size);
+  eigen_normalization_.resize(1, beam_size);
+}
 
 
 
@@ -1180,6 +1534,71 @@ void EnsembleFactory<T>::DecodeFile() {
   }
   logger<<"\n";
 }
+
+
+template <typename T>
+void EnsembleFactory<T>::DecodeSentence(const std::vector<int> &v_input_sentence_int, std::string &output_sentence) {
+
+  for (int j = 0; j < v_models_.size(); ++j) {
+    v_models_[j].MemcpyVocabIndicesSentence(v_input_sentence_int);
+  }
+
+  DeviceSyncAll();
+
+  // init decoder
+  p_decoder_->InitDecoder();
+
+  // run forward prop on the source
+  for (int j = 0; j < v_models_.size(); ++j) {
+    v_models_[j].ForwardPropSource();
+    if (dump_sentence_embedding_mode_) {
+      v_models_[j].DumpSentenceEmbedding(out_sentence_embedding_);
+    }
+  }
+  int last_index = 0;
+
+  // for dumping hidden states we can just return
+  if (tsne_dump_mode__) {
+    return;
+  }
+
+  int source_length = std::max(v_models_[0].source_length_, v_models_[0].source_length_bi_);
+  for (int curr_index = 0; curr_index < std::min((int)(max_decoding_ratio_ * source_length), longest_sentence_ - 2); curr_index++) {
+    for (int j = 0; j < v_models_.size(); ++j) {
+      v_models_[j].ForwardPropTarget(curr_index, p_decoder_->p_host_current_indices_);   
+      // now take the viterbi alignments
+    }
+
+    // now ensemble the models together
+    // this also does voting for unk-replacement
+    EnsemblesModels();
+
+    // run decoder for this iteration
+    p_decoder_->ExpandHypothesis(eigen_outputdist_, curr_index, viterbi_alignments__, alignment_scores__, diversity_);
+
+    // swap the decoding states
+    for (int j = 0; j < v_models_.size(); ++j) {
+      v_models_[j].SwapDecodingStates(p_decoder_->eigen_new_indices_changes_, curr_index);
+      v_models_[j].TargetCopyPrevStates();
+    }
+
+    // for the scores of the last hypothesis
+    last_index = curr_index;
+  }
+
+  // now run one last iteration
+  for (int j = 0; j < v_models_.size(); ++j) {
+    v_models_[j].ForwardPropTarget(last_index + 1, p_decoder_->p_host_current_indices_);
+  }
+
+  // output the final results of the decoder
+  EnsemblesModels();
+  p_decoder_->FinishCurrentHypotheses(eigen_outputdist_, viterbi_alignments__, alignment_scores__);
+  p_decoder_->ObtainOneBestHypothesis(source_length, lp_alpha_, cp_beta_, output_sentence);
+
+  return;
+}
+
 
 
 template <typename T>

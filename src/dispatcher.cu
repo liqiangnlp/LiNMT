@@ -415,36 +415,41 @@ void Dispatcher::Decoding(GlobalConfiguration &configuration) {
 
 
 void Dispatcher::DecodingSentence(GlobalConfiguration &configuration) {
-  std::chrono::time_point<std::chrono::system_clock> begin_total, end_total;
-  std::chrono::duration<double> elapsed_seconds;
-  begin_total = std::chrono::system_clock::now();
+  logger<<"\n$$ File Information\n"
+        <<"   Config file              : "<<configuration.decode_sentence_config_file_<<"\n"
+        <<"   Input file               : "<<configuration.decode_sentence_input_file_<<"\n"
+        <<"   Output file              : "<<configuration.decode_sentence_output_file_<<"\n";
 
-  SystemTime system_time;
+  DecoderSentence decoder_sentence;
+  decoder_sentence.Init(configuration.decode_sentence_config_file_);
 
-  logger<<"\n$$ Starting decoding\n";
-  logger<<"   "<<system_time.GetCurrentSystemTime()<<"\n";
-
-  // initialize neural network machine translation
-  // NeuralMachineTranslation<precision> neural;
-
-  configuration.PrintDecodingSentParameters();
-
-  // Load model
-
-  // Decoding sentence
+  std::ifstream in_file(configuration.decode_sentence_input_file_.c_str());
+  if (!in_file) {
+    logger<<"   Error: can not open "<<configuration.decode_sentence_input_file_<<" file!\n";
+    exit(EXIT_FAILURE);
+  }
 
 
+  logger<<"\n$$ Translating\n";
+  std::ofstream out_file(configuration.decode_sentence_output_file_.c_str());
+  if (!out_file) {
+    logger<<"   Error: can not write "<<configuration.decode_sentence_output_file_<<" file!\n";
+    exit(EXIT_FAILURE);
+  }
 
+  int number_of_sentences = 0;
+  std::string input_sentence;
+  while (std::getline(in_file, input_sentence)) {
+    ++number_of_sentences;
+    std::string output_sentence;
+    decoder_sentence.Process(input_sentence, output_sentence);
+    out_file<<"["<<number_of_sentences<<"] "<<output_sentence<<"\n";
+    logger<<"\r   "<<number_of_sentences<<" sentences";
+  }
+  logger<<"\r   "<<number_of_sentences<<" sentences\n";
 
-
-  end_total = std::chrono::system_clock::now();
-  elapsed_seconds = end_total - begin_total;
-  logger<<"\n$$ Total Runtime\n" 
-        <<"   "<<elapsed_seconds.count()<<" seconds\n";
-  logger<<"   "<<system_time.GetCurrentSystemTime()<<"\n\n";
-
-
-
+  in_file.close();
+  out_file.close();
   return;
 }
 

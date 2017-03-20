@@ -138,7 +138,6 @@ public:
   bool training_mode_ = true;                // If you want to train the model
   bool test_mode_ = false;                   // If you want to test the model
   bool decode_mode_ = false;                 // If you want to decode
-  bool decode_sentence_mode_ = false;        // If you want to decode sentence by sentence
   bool postprocess_unk_mode_ = false;
   bool calculate_bleu_mode_ = false;
   bool average_models_mode_ = false;
@@ -232,6 +231,12 @@ public:
   //bool print_score_mode_ = false;       // Whether to print the score of the hypotheses or not
   //bool print_alignment_mode_ = false;
   //bool print_unk_alignment_mode_ = false;
+
+public:
+  bool decode_sentence_mode_ = false;        // If you want to decode sentence by sentence
+  std::string decode_sentence_config_file_;
+  std::string decode_sentence_input_file_;
+  std::string decode_sentence_output_file_;
 
 public:
   //std::vector<std::string> bpe_parameters_;                // parameters for bpe
@@ -348,8 +353,7 @@ public:
 public:
   void Decoding(boost::program_options::variables_map &v_map, std::vector<std::string> &kbest_files, \
                 std::vector<precision> &decoding_ratio, std::vector<int> &gpu_indices);
-  void DecodingSentence(boost::program_options::variables_map &v_map, std::vector<std::string> &v_decoding_sentences, \
-                        std::vector<precision> &decoding_ratio, std::vector<int> &gpu_indices);
+  void DecodingSentence(std::vector<std::string> &v_decoding_sentences);
 
 
 public:

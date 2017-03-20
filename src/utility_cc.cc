@@ -262,6 +262,19 @@ std::string BasicMethod::size_tToString(size_t &source) {
 }
 
 
+std::string BasicMethod::IntToString(int &source) {
+  std::stringstream oss;
+  oss << source;
+  return oss.str();
+}
+
+
+std::string BasicMethod::FloatToString(float &source) {
+  std::stringstream oss;
+  oss << source;
+  return oss.str();
+}
+
 
 
 } // end namespace neural_machine_translation

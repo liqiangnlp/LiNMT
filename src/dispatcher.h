@@ -26,6 +26,7 @@
 #include "global_configuration.h"
 #include "file_helper.h"
 #include "decoder.h"
+#include "decoder_sentence.h"
 #include "postprocess_unks.h"
 #include "ibm_bleu_score.h"
 #include "average_models.h"

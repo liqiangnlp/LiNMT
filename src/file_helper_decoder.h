@@ -58,10 +58,12 @@ public:
 
 public:
   void Init(std::string file_name, int &num_lines_in_file, int max_sentence_length);
+  void InitDecoderSentence(int max_sentence_length);
 
 
 public:
   bool ReadSentence();
+  bool UseSentence(const std::vector<int> &v_input_sentence_int);
 
 };
 
