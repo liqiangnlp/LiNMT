@@ -24,6 +24,13 @@ namespace neural_machine_translation {
 class PostProcessUnks {
 
 public:
+  std::string dict_file_name_;
+  std::string stopword_file_name_;
+  std::string end_punctuation_file_name_;
+  bool remove_oov_mode_ = true;
+
+
+public:
   std::unordered_map<std::string, std::string> uno_dict_;
   std::unordered_map<std::string, bool> uno_stopwords_;
   std::unordered_map<std::string, bool> uno_end_punctuations_;
@@ -35,7 +42,16 @@ public:
   PostProcessUnks() {};
   ~PostProcessUnks() {};
 
+
 public:
+  bool Init(std::string &config);
+  bool Process(std::string &source_sentence, std::string &input_sentence, std::string &output_sentence);
+
+private:
+  bool ReadConfigFile(const std::string &config_file_name, std::map<std::string, std::string> &m_parameters);
+  bool GeneralSettings(std::map<std::string, std::string> &m_parameters);
+
+private:
   void LoadDicrionary(std::string &unk_dict_file_name);
   void LoadStopwords(std::string &unk_stopword_file_name);
   void LoadEndPunctuation(std::string &unk_stopword_file_name);
@@ -65,6 +81,14 @@ public:
 };
 
 } // end of neural_machine_translation namespace
+
+
+extern "C" {
+  void python_unk_init(char *msg);
+  char* python_unk_do_job(char *src_sentence, char *translation);
+}
+
+
 
 
 #endif

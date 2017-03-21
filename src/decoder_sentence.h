@@ -52,6 +52,14 @@ private:
 
 } // End of namespace neural_machine_translation
 
+
+extern "C" {
+  void python_decoder_init(char *msg);
+  char* python_decoder_do_job(char *sentence);
+}
+
+
+
 #endif
 
 

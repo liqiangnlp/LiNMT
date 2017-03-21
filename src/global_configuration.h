@@ -294,6 +294,7 @@ public:
 
 
 public:
+  std::string unk_config_file_name_;
   std::string unk_dict_file_name_;
   std::string unk_source_file_name_;
   std::string unk_1best_file_name_;

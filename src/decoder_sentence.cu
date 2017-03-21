@@ -380,10 +380,37 @@ bool DecoderSentence::LoadParallelVocabulary(const std::string &nmt_model_file, 
   return true;
 }
 
-
-
-
 } // End of namespace neural_machine_translation
+
+
+char *decoder_result__ = NULL;
+neural_machine_translation::DecoderSentence decoder_sentence__;
+
+void python_decoder_init(char *msg) {
+  std::string configuration(msg);
+  decoder_sentence__.Init(configuration);
+}
+
+char* python_decoder_do_job(char *sentence) {
+  if (decoder_result__ != NULL) {
+    delete[] decoder_result__;
+  }
+
+  std::string input_sentence(sentence);
+  std::string output_sentence;
+  decoder_sentence__.Process(input_sentence, output_sentence);
+
+#ifdef WIN32
+  decoder_result__ = new char[ output_sentence.size() + 1 ];
+  strcpy_s(decoder_result__, output_sentence.size() + 1, output_sentence.c_str());
+#else
+  decoder_result__ = new char[ output_sentence.size() + 1 ];
+  strncpy(decoder_result__, output_sentence.c_str(), output_sentence.size() + 1);
+#endif
+
+  return decoder_result__;
+}
+
 
 
 

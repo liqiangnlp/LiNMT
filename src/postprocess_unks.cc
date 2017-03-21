@@ -11,6 +11,104 @@
 
 namespace neural_machine_translation {
 
+bool PostProcessUnks::Init(std::string &config) {
+  
+  std::map<std::string, std::string> m_parameters;
+  ReadConfigFile(config, m_parameters);
+  GeneralSettings(m_parameters);
+    
+  LoadDicrionary(dict_file_name_);
+  LoadStopwords(stopword_file_name_);
+  LoadEndPunctuation(end_punctuation_file_name_);
+  return true;
+}
+
+
+bool PostProcessUnks::Process(std::string &source_sentence, std::string &input_sentence, std::string &output_sentence) {
+  Processing(source_sentence, input_sentence, output_sentence, remove_oov_mode_);
+  return true;
+}
+
+
+bool PostProcessUnks::ReadConfigFile(const std::string &config_file_name, std::map<std::string, std::string> &m_parameters) {
+
+  std::ifstream in_config_file(config_file_name.c_str());
+  if (!in_config_file) {
+    logger<<"   ERROR: Config File "<<config_file_name<<" does not exist, exit!\n";
+    exit (EXIT_FAILURE);
+  }
+
+  std::string line_of_config_file;
+  while (std::getline(in_config_file, line_of_config_file)) {
+    basic_method_.ClearIllegalChar(line_of_config_file);
+    basic_method_.RmStartSpace(line_of_config_file);
+    basic_method_.RmEndSpace(line_of_config_file);
+
+    if (line_of_config_file == "" || *line_of_config_file.begin() == '#') {
+      continue;
+    } else if (line_of_config_file.find("param=\"") == line_of_config_file.npos || \
+               line_of_config_file.find("value=\"") == line_of_config_file.npos) {
+      continue;
+    } else {
+      std::string::size_type pos = line_of_config_file.find( "param=\"" );
+      pos += 7;
+      std::string key;
+      for ( ; line_of_config_file[pos] != '\"' && pos < line_of_config_file.length(); ++pos) {
+        key += line_of_config_file[pos];
+      }
+      if (line_of_config_file[ pos ] != '\"') {
+        continue;
+      }
+
+      pos = line_of_config_file.find( "value=\"" );
+      pos += 7;
+      std::string value;
+
+      for ( ; line_of_config_file[pos] != '\"' && pos < line_of_config_file.length(); ++pos ) {
+        value += line_of_config_file[pos];
+      }
+
+      if (line_of_config_file[pos] != '\"') {
+        continue;
+      }
+
+      if (m_parameters.find(key) == m_parameters.end()) {
+        m_parameters.insert(make_pair(key, value));
+      } else {
+        m_parameters[key] = value;
+      }
+    }
+  }
+  in_config_file.close();
+  return true;
+}
+
+
+bool PostProcessUnks::GeneralSettings(std::map<std::string, std::string> &m_parameters) {
+  std::string key = "--phrase-table";
+  if (m_parameters.find(key) != m_parameters.end()) {
+    dict_file_name_ = m_parameters[key];
+  }
+
+  key = "--stopword";
+  if (m_parameters.find(key) != m_parameters.end()) {
+    stopword_file_name_ = m_parameters[key];
+  }
+
+  key = "--end-punct";
+  if (m_parameters.find(key) != m_parameters.end()) {
+    end_punctuation_file_name_ = m_parameters[key];
+  }
+
+  key = "--rm-oov-mode";
+  if (m_parameters.find(key) != m_parameters.end()) {
+    remove_oov_mode_ = std::atoi(m_parameters[key].c_str());
+    remove_oov_mode_ = !remove_oov_mode_;
+  }
+  return true;
+}
+
+
 void PostProcessUnks::LoadDicrionary(std::string &unk_dict_file_name) {
   std::ifstream unk_dict_stream(unk_dict_file_name.c_str());
   if (!unk_dict_stream) {
@@ -557,8 +655,43 @@ void PostProcessUnks::FindUnStopword(std::string &align_scores, std::vector<std:
   return;
 }
 
-
 } // end of neural_machine_translation namespace
+
+
+char *postprocess_result__ = NULL;
+neural_machine_translation::PostProcessUnks post_process_unks;
+
+void python_unk_init(char *msg) {
+  std::string configuration(msg);
+  post_process_unks.Init(configuration);
+}
+
+char* python_unk_do_job(char *src_sentence, char *translation) {
+  if (postprocess_result__ != NULL) {
+    delete[] postprocess_result__;
+  }
+
+  std::string source_sentence(src_sentence);
+  std::string translation_result(translation);
+  std::string output_sentence;
+  post_process_unks.Process(source_sentence, translation_result, output_sentence);
+  std::vector<std::string> v_fields;
+  neural_machine_translation::BasicMethod basic_method;
+  basic_method.SplitWithString(output_sentence, " |||| ", v_fields);
+  if (v_fields.size() > 1) {
+    output_sentence = v_fields.at(0);
+  }
+
+#ifdef WIN32
+  postprocess_result__ = new char[ output_sentence.size() + 1 ];
+  strcpy_s(postprocess_result__, output_sentence.size() + 1, output_sentence.c_str());
+#else
+  postprocess_result__ = new char[ output_sentence.size() + 1 ];
+  strncpy(postprocess_result__, output_sentence.c_str(), output_sentence.size() + 1);
+#endif
+
+  return postprocess_result__;
+}
 
 
 

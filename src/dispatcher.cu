@@ -456,20 +456,14 @@ void Dispatcher::DecodingSentence(GlobalConfiguration &configuration) {
 
 void Dispatcher::PostProcessUnk(GlobalConfiguration &configuration) {
 
-  logger<<"\n$$ File Information\n"
-        <<"   1best w/ unks            : "<<configuration.unk_1best_file_name_<<"\n"
-        <<"   Word-2-phrase dictionary : "<<configuration.unk_dict_file_name_<<"\n"
-        <<"   Source decoded sentences : "<<configuration.unk_source_file_name_<<"\n"
-        <<"   Stopword                 : "<<configuration.unk_stopword_file_name_<<"\n"
-        <<"   Remove oov mode          : "<<!configuration.unk_output_oov_mode_<<"\n"
+  logger<<"\n$$ File Information\n" \
+        <<"   Config file              : "<<configuration.unk_config_file_name_<<"\n" \
+        <<"   Source decoded sentences : "<<configuration.unk_source_file_name_<<"\n" \
+        <<"   1best w/ unks            : "<<configuration.unk_1best_file_name_<<"\n" \
         <<"   Output w/o unks          : "<<configuration.unk_output_file_name_<<"\n";
 
   PostProcessUnks post_process_unks;
-  post_process_unks.LoadDicrionary(configuration.unk_dict_file_name_);
-
-  post_process_unks.LoadStopwords(configuration.unk_stopword_file_name_);
-
-  post_process_unks.LoadEndPunctuation(configuration.unk_stopword_file_name_);
+  post_process_unks.Init(configuration.unk_config_file_name_);
 
   std::ifstream nmt_translation_stream(configuration.unk_1best_file_name_.c_str());
   std::ifstream source_stream(configuration.unk_source_file_name_.c_str());
@@ -492,7 +486,7 @@ void Dispatcher::PostProcessUnk(GlobalConfiguration &configuration) {
       logger<<"\r   "<<line_num<<" sentences";
     }
     std::string line_output;
-    post_process_unks.Processing(line_source, line_nmt_translation, line_output, configuration.unk_output_oov_mode_);
+    post_process_unks.Process(line_source, line_nmt_translation, line_output);
     output_stream<<line_output<<"\n";
   }
   logger<<"\r   "<<line_num<<" sentences\n";

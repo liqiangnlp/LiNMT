@@ -1203,19 +1203,16 @@ void GlobalConfiguration::ForceDecoding(boost::program_options::variables_map &v
 void GlobalConfiguration::PostProcessUnk(boost::program_options::variables_map &v_map, std::vector<std::string> &v_postprocess_unk) {
   logger<<"\n$$ Postprocess unks\n";
 
-  if (v_postprocess_unk.size() != 6) {
-    logger<<"Error: --postprocess-unk takes five arguements.\n"
-          <<" 1 1best, 2 dict,  3 src, 4 stopword, 5 rmoov, 6 output\n";
+  if (v_postprocess_unk.size() != 4) {
+    logger<<"Error: --postprocess-unk takes four arguements.\n"
+          <<" 1 config, 2 src,  3 1best, 4 output\n";
     exit(EXIT_FAILURE);
   }
 
-  unk_dict_file_name_ = v_postprocess_unk[1];
-  unk_source_file_name_ = v_postprocess_unk[2];
-  unk_1best_file_name_ = v_postprocess_unk[0];
-  unk_stopword_file_name_ = v_postprocess_unk[3];
-  unk_output_file_name_ = v_postprocess_unk[5];
-  unk_output_oov_mode_ = !std::stoi(v_postprocess_unk[4].c_str());
-
+  unk_config_file_name_ = v_postprocess_unk.at(0);
+  unk_source_file_name_ = v_postprocess_unk.at(1);
+  unk_1best_file_name_ = v_postprocess_unk.at(2);
+  unk_output_file_name_ = v_postprocess_unk.at(3);
 
   training_mode_ = false;
   decode_mode_ = false;
@@ -1485,7 +1482,7 @@ void GlobalConfiguration::AddOptions(boost::program_options::options_description
     ("vocab-replacement", p_options::value<std::vector<std::string> >(&v_vocabulary_replacement)->multitoken(), "Replace vocabulary\n"\
     " <replaced-words> <model> <output>")
     ("postprocess-unk", p_options::value<std::vector<std::string> >(&v_postprocess_unk)->multitoken(), "Postprocess unks\n"\
-    " <1best> <dict> <src> <stopword> <rmoov> <output>")
+    " <config> <src> <1best> <output>")
     ("word-embedding", p_options::value<std::vector<std::string> >(&v_words_embeddings)->multitoken(), "Dump words embeddings\n"\
     " <model> <src-words> <tgt-words>")
     ("bleu", p_options::value<std::vector<std::string> >(&v_bleu_score)->multitoken(), "Calculate BLEU score\n"\
