@@ -396,10 +396,13 @@ char* python_decoder_do_job(char *sentence) {
     delete[] decoder_result__;
   }
 
-  std::string input_sentence(sentence);
   std::string output_sentence;
-  decoder_sentence__.Process(input_sentence, output_sentence);
-
+  std::string input_sentence(sentence);
+  if("" == input_sentence) {
+    output_sentence = "";
+  } else {
+    decoder_sentence__.Process(input_sentence, output_sentence);
+  }
 #ifdef WIN32
   decoder_result__ = new char[ output_sentence.size() + 1 ];
   strcpy_s(decoder_result__, output_sentence.size() + 1, output_sentence.c_str());

@@ -674,12 +674,18 @@ char* python_unk_do_job(char *src_sentence, char *translation) {
   std::string source_sentence(src_sentence);
   std::string translation_result(translation);
   std::string output_sentence;
-  post_process_unks.Process(source_sentence, translation_result, output_sentence);
+  if ("" == source_sentence || "" == translation_result) {
+    output_sentence = "";
+  } else {
+    post_process_unks.Process(source_sentence, translation_result, output_sentence);
+  }
   std::vector<std::string> v_fields;
   neural_machine_translation::BasicMethod basic_method;
   basic_method.SplitWithString(output_sentence, " |||| ", v_fields);
   if (v_fields.size() > 1) {
     output_sentence = v_fields.at(0);
+  } else {
+    output_sentence = "";
   }
 
 #ifdef WIN32
