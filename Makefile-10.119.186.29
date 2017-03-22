@@ -57,8 +57,8 @@ SOURCE_CODE = $(SOURCE_CODE_FOLDER)main.cu \
               $(SOURCE_CODE_FOLDER)byte_pair_encoding.cc \
               $(SOURCE_CODE_FOLDER)decoder_sentence.cu
 
-NiuTrans.NMT:
+LiNMT:
 	nvcc $(NVCCFLAGS) $(SOURCE_CODE) -o $(PROGRAM_FOLDER)$@
 
 clean:
-	-rm $(PROGRAM_FOLDER)NiuTrans.NMT
+	-rm $(PROGRAM_FOLDER)LiNMT

@@ -5,13 +5,19 @@
 # * Time  : 17:46                  * #
 # *                                * #
 
+
+# module add cuda/8.0.44
+# module add gcc/4.9.3
+# module add boost/1.62.0
+
+
 SOURCE_CODE_FOLDER = src/
 PROGRAM_FOLDER = bin/
 
-CUDA_INCLUDE = /usr/local/cuda-8.0/include/
-BOOST_INCLUDE = /usr/local/include/boost/
-CUDA_LIB_64 = /usr/local/cuda-8.0/lib64/
-BOOST_LIB = /usr/local/lib/
+CUDA_INCLUDE = /share/apps/cuda/8.0.44/include/
+BOOST_INCLUDE = /share/apps/boost/1.62.0/include/
+CUDA_LIB_64 = /share/apps/cuda/8.0.44/lib64/
+BOOST_LIB = /share/apps/boost/1.62.0/lib/
 EIGEN = ./eigen/
 
 NVCCFLAGS = -DCUDNN_STATIC -O3 -std=c++11 \
@@ -50,8 +56,6 @@ SOURCE_CODE = $(SOURCE_CODE_FOLDER)main.cu \
               $(SOURCE_CODE_FOLDER)word_embedding.cc \
               $(SOURCE_CODE_FOLDER)byte_pair_encoding.cc \
               $(SOURCE_CODE_FOLDER)decoder_sentence.cu
-
-
 
 LiNMT:
 	nvcc $(NVCCFLAGS) $(SOURCE_CODE) -o $(PROGRAM_FOLDER)$@

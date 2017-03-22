@@ -52,8 +52,8 @@ SOURCE_CODE = $(SOURCE_CODE_FOLDER)deep_rnn_kernel.cu \
 
 
 
-nmt.so:
+LiNMT.so:
 	nvcc $(NVCCFLAGS) $(SOURCE_CODE) -o $(PROGRAM_FOLDER)$@
 
 clean:
-	-rm $(PROGRAM_FOLDER)nmt.so
+	-rm $(PROGRAM_FOLDER)LiNMT.so

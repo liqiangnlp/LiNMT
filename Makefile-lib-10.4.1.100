@@ -5,36 +5,39 @@
 # * Time  : 17:46                  * #
 # *                                * #
 
-SOURCE_CODE_FOLDER = src/
-PROGRAM_FOLDER = bin/
 
-CUDA_INCLUDE = /usr/local/cuda-8.0/include/
-BOOST_INCLUDE = /usr/local/include/boost/
-CUDA_LIB_64 = /usr/local/cuda-8.0/lib64/
-BOOST_LIB = /usr/local/lib/
+SOURCE_CODE_FOLDER = src/
+PROGRAM_FOLDER = lib/
+
+CUDA_INCLUDE = /share/apps/cuda/8.0.44/include/
+BOOST_INCLUDE = /share/apps/boost/1.62.0/include/
+CUDA_LIB_64 = /share/apps/cuda/8.0.44/lib64/
+BOOST_LIB = /share/apps/boost/1.62.0/lib/
 EIGEN = ./eigen/
 
-NVCCFLAGS = -DCUDNN_STATIC -O3 -std=c++11 \
+NVCCFLAGS = -DCUDNN_STATIC --shared \
+            --compiler-options '-fPIC' \
+            -O3 -std=c++11 \
             -g -Xcompiler -fopenmp \
             -I $(CUDA_INCLUDE) \
             -I $(BOOST_INCLUDE) \
             -I $(EIGEN) \
-            $(BOOST_LIB)libboost_system.a \
-            $(BOOST_LIB)libboost_filesystem.a \
-            $(BOOST_LIB)libboost_program_options.a \
-            $(CUDA_LIB_64)libcublas_static.a \
-            $(CUDA_LIB_64)libcudadevrt.a \
-            $(CUDA_LIB_64)libcudart_static.a \
-            $(CUDA_LIB_64)libculibos.a \
-            $(CUDA_LIB_64)libcurand_static.a \
-            $(CUDA_LIB_64)libcusolver_static.a \
-            $(CUDA_LIB_64)libcusparse_static.a \
-            $(CUDA_LIB_64)libnppc_static.a \
-            $(CUDA_LIB_64)libnppi_static.a \
-            $(CUDA_LIB_64)libnpps_static.a
+            -L $(BOOST_LIB) \
+            -L $(CUDA_LIB_64) \
+            -l boost_system \
+            -l boost_filesystem \
+            -l boost_program_options \
+            -l cublas \
+            -l cudart \
+            -l culibos \
+            -l curand \
+            -l cusolver \
+            -l cusparse \
+            -l nppc \
+            -l nppi \
+            -l npps
 
-SOURCE_CODE = $(SOURCE_CODE_FOLDER)main.cu \
-              $(SOURCE_CODE_FOLDER)deep_rnn_kernel.cu \
+SOURCE_CODE = $(SOURCE_CODE_FOLDER)deep_rnn_kernel.cu \
               $(SOURCE_CODE_FOLDER)dispatcher.cu \
               $(SOURCE_CODE_FOLDER)global_configuration.cc \
               $(SOURCE_CODE_FOLDER)layer_gpu.cc \
@@ -53,8 +56,8 @@ SOURCE_CODE = $(SOURCE_CODE_FOLDER)main.cu \
 
 
 
-LiNMT:
+LiNMT.so:
 	nvcc $(NVCCFLAGS) $(SOURCE_CODE) -o $(PROGRAM_FOLDER)$@
 
 clean:
-	-rm $(PROGRAM_FOLDER)LiNMT
+	-rm $(PROGRAM_FOLDER)LiNMT.so
