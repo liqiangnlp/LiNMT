@@ -13,7 +13,7 @@
 
 int main(int argc, char **argv) {
   neural_machine_translation::SystemTime system_time;
-  std::cerr<<"\n\n$$ Welcome to the world of NiuTrans.NMT V1.0!\n"
+  std::cerr<<"\n\n$$ Welcome to the world of LiNMT V1.0!\n"
            <<"$$ Author: Qiang Li\n"
            <<"$$ Email : liqiangneu@gmail.com\n"
            <<"$$ Update: 14:03:00, 12/16/2016\n"

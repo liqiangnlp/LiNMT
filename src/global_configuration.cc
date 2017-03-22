@@ -175,7 +175,7 @@ void GlobalConfiguration::NormalSettingsAndChecking(boost::program_options::opti
         v_map.count("stoch-gen") || v_map.count("bpe-train") || \
         v_map.count("bpe-segment"))) {
     logger<<"Please use \n"
-          <<"   $./NiuTrans.NMT --help\n";
+          <<"   $./LiNMT --help\n";
     exit(EXIT_FAILURE);
   }
 
@@ -1463,7 +1463,7 @@ void GlobalConfiguration::AddOptions(boost::program_options::options_description
                                      std::vector<std::string> &v_parameters_of_bpe) {
   namespace p_options = boost::program_options;
   description.add_options() 
-    ("help", "NiuTrans.NMT Usage\n")
+    ("help", "LiNMT Usage\n")
     ("tune", p_options::value<std::vector<std::string> > (&training_files)->multitoken(), "Tune a NMT/NLM model\n"\
      " NMT: <srcfile> <tgtfile> <model>\n"\
      " NLM: <tgtfile> <model>")
