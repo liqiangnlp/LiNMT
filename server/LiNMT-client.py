@@ -4,7 +4,7 @@
 import socket
 import sys
 
-HOST, PORT = "10.119.186.29", 8088
+HOST, PORT = "10.119.186.29", 8090
 data = " ".join(sys.argv[1:])
 
 # Create a socket (SOCK_STREAM means a TCP socket)
