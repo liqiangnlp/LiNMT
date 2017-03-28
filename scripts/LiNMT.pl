@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# * NiuTrans.NMT v1.0                   * #
+# * LiNMT v1.0                          * #
 # * Author: Qiang Li,                   * #
 # * Email : liqiangneu@gmail.com        * #
 # * Date  : 10/30/2016                  * #
@@ -19,7 +19,7 @@ my %option;
 GetParameter(@ARGV);
 ReadConfigFile($param{ "-config" });
 
-my $exec = "../bin/NiuTrans.NMT";
+my $exec = "../bin/LiNMT";
 my $opt = "";
 
 my $key;
@@ -38,11 +38,11 @@ sub GetParameter
   if( ( scalar( @_ ) < 2 ) || ( scalar( @_ ) % 2 != 0 ) )
   {
     print STDERR "[USAGE]\n".
-                 "        NiuTrans.NMT-nmt-training.pl   [OPTIONS]\n".
+                 "        LiNMT.pl              [OPTIONS]\n".
                  "[OPTION]\n".
                  "    -config   :  Configuration file\n".
                  "[EXAMPLE]\n".
-                 "   perl NiuTrans.NMT-nmt-training.pl\n";
+                 "   perl LiNMT-nmt-training.pl\n";
     exit( 0 );
   }
           
