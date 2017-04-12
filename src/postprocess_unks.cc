@@ -226,6 +226,7 @@ void PostProcessUnks::Processing(std::string &line_source, std::string &line_nmt
   std::unordered_map<int, std::string> uno_generalization_number;          // $number
   std::unordered_map<int, std::string> uno_generalization_time;            // $time
   std::unordered_map<int, std::string> uno_generalization_date;            // $date
+  std::unordered_map<int, std::string> uno_generalization_day;            // $day
   std::unordered_map<int, std::string> uno_generalization_person;          // $person
   std::unordered_map<int, std::string> uno_generalization_location;        // $location
   std::unordered_map<int, std::string> uno_generalization_organization;    // $organization
@@ -264,6 +265,8 @@ void PostProcessUnks::Processing(std::string &line_source, std::string &line_nmt
             uno_generalization_time[atoi(v_fields_tmp.at(0).c_str())] = v_fields_tmp.at(2);
           } else if ("$date" == v_fields_tmp.at(3)) {
             uno_generalization_date[atoi(v_fields_tmp.at(0).c_str())] = v_fields_tmp.at(2);
+          } else if ("$day" == v_fields_tmp.at(3)) {
+            uno_generalization_day[atoi(v_fields_tmp.at(0).c_str())] = v_fields_tmp.at(2);
           } else if ("$psn" == v_fields_tmp.at(3)) {
             uno_generalization_person[atoi(v_fields_tmp.at(0).c_str())] = v_fields_tmp.at(2);
           } else if ("$loc" == v_fields_tmp.at(3)) {
@@ -373,6 +376,7 @@ void PostProcessUnks::Processing(std::string &line_source, std::string &line_nmt
           if ("$number" != v_source_words[v_target_align[i]] && \
               "$time" != v_source_words[v_target_align[i]] && \
               "$date" != v_source_words[v_target_align[i]] && \
+              "$day" != v_source_words[v_target_align[i]] && \
               "$psn" != v_source_words[v_target_align[i]] && \
               "$loc" != v_source_words[v_target_align[i]] && \
               "$org" != v_source_words[v_target_align[i]] && \
@@ -433,6 +437,9 @@ void PostProcessUnks::Processing(std::string &line_source, std::string &line_nmt
     } else if ("$date" == v_target_words[i]) {
       TargetIsGeneralization(uno_generalization_date, v_source_words, v_target_align, v_target_align_scores, i, \
                              output_oov_mode, "<$date>",line_output);
+    } else if ("$day" == v_target_words[i]) {
+      TargetIsGeneralization(uno_generalization_day, v_source_words, v_target_align, v_target_align_scores, i, \
+                             output_oov_mode, "<$day>",line_output);
     } else if ("$psn" == v_target_words[i]) {
       TargetIsGeneralization(uno_generalization_person, v_source_words, v_target_align, v_target_align_scores, i, \
                              output_oov_mode, "<$psn>",line_output);
