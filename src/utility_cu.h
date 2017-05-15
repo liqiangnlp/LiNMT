@@ -78,6 +78,9 @@ extern bool pre_normalization_mode__;
 
 extern bool dump_every_best__;
 extern int curr_dump_num__;
+extern int dump_last_epoch__;
+extern int curr_dump_minibatch_num__;
+
 
 
 

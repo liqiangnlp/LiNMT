@@ -119,6 +119,7 @@ void Dispatcher::Tuning(GlobalConfiguration &configuration) {
 
   // information for averaging the speed
   int current_batch_num_speed = 0;
+  int current_batch_num = 0;
   const int threshold_batch_num_speed = configuration.screen_print_rate_;
   int total_words_batch_speed = 0;
   double total_batch_time_speed = 0;
@@ -187,6 +188,7 @@ void Dispatcher::Tuning(GlobalConfiguration &configuration) {
     total_words_batch_speed += file_information.words_in_minibatch_;
 
     ++current_batch_num_speed;
+    ++current_batch_num;
     total_words += file_information.words_in_minibatch_;
     if ((current_batch_num_speed >= threshold_batch_num_speed) || !success_flag) {
 
@@ -256,8 +258,16 @@ void Dispatcher::Tuning(GlobalConfiguration &configuration) {
       old_perplexity = new_perplexity;
     }
 
+
+    if (current_epoch == configuration.epochs_number_ && 0 != dump_last_epoch__ && current_batch_num % dump_last_epoch__ == 0) {
+      neural.DumpMinibatchModel(configuration.best_model_file_name_, configuration.output_weight_file_);
+      logger<<"\n";
+    }
+
+
     if (!success_flag) {
       current_epoch += 1;
+      current_batch_num = 0;
 
       // stuff for google learning rate schedule
       if (configuration.google_learning_rate_ && current_epoch >= configuration.epoch_to_start_halving_) {

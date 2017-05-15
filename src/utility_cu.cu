@@ -53,6 +53,8 @@ bool pre_normalization_mode__ = false;
 // for dumping the best model
 bool dump_every_best__ = false;
 int curr_dump_num__ = 1;
+int dump_last_epoch__ = 0;
+int curr_dump_minibatch_num__ = 1;
 
 // stuff for unk replacement using attention
 bool unk_replacement_mode__ = false;

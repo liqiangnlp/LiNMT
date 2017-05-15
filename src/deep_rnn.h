@@ -219,6 +219,7 @@ public:
 
 public:
   void DumpBestModel(std::string best_model_name, std::string const_model_name);
+  void DumpMinibatchModel(std::string minibatch_model_name, std::string const_model_name);
 
 public:
   void DumpWeights();
@@ -1939,6 +1940,83 @@ void NeuralMachineTranslation<T>::DumpBestModel(std::string best_model_name, std
   best_model_stream.close();
   const_model_stream.close();
 }
+
+
+
+template <typename T>
+void NeuralMachineTranslation<T>::DumpMinibatchModel(std::string best_model_name, std::string const_model_name) {
+
+  if (dump_every_best__) {
+    best_model_name += "-" + std::to_string(curr_dump_num__) + "-" + std::to_string(curr_dump_minibatch_num__);
+    curr_dump_minibatch_num__ += 1;
+  }
+
+  logger<<"   Minibatch model file   : "<<best_model_name<<"\n";
+
+  if (boost::filesystem::exists(best_model_name)) {
+    boost::filesystem::remove(best_model_name);
+  }
+
+  std::ifstream const_model_stream;
+  const_model_stream.open(const_model_name.c_str());
+
+  std::ofstream best_model_stream;
+  best_model_stream.open(best_model_name.c_str());
+
+  best_model_stream.precision(std::numeric_limits<T>::digits10 + 2);
+
+  // now create the new model file
+  std::string str;
+  std::string word;
+  // first line, parameters
+  std::getline(const_model_stream, str);
+  best_model_stream<<str<<"\n";
+  // second line, =======...
+  std::getline(const_model_stream, str);
+  best_model_stream<<str<<"\n";
+
+  // first part of vocab, if sequence model, just have this
+  while (std::getline(const_model_stream, str)) {
+    best_model_stream<<str<<"\n";
+    if (str.size() > 3 && '=' == str[0] && '=' == str[1] && '=' == str[2]) {
+      break;
+    }
+  }
+
+  // second part of vocab, if sequence_to_sequence_mode_, have this
+  if (sequence_to_sequence_mode_) {
+    while (std::getline(const_model_stream, str)) {
+      best_model_stream<<str<<"\n";
+      if (str.size() > 3 && '=' == str[0] && '=' == str[1] && '=' == str[2]) {
+        break;
+      }
+    }
+  }
+
+  // if sequence_to_sequence_mode_, have source input & hidden layers, output parameters
+  if (sequence_to_sequence_mode_) {
+    input_layer_source_.DumpWeights(best_model_stream);
+    for (int i = 0; i < v_hidden_layers_source_.size(); ++i) {
+      v_hidden_layers_source_[i].DumpWeights(best_model_stream);
+    }
+  }
+
+  // output parameters of target input & hidden layers
+  input_layer_target_.DumpWeights(best_model_stream);
+  for (int i = 0; i < v_hidden_layers_target_.size(); ++i) {
+    v_hidden_layers_target_[i].DumpWeights(best_model_stream);
+  }
+
+  // output parameters of softmax layer
+  p_softmax_layer_->DumpWeights(best_model_stream);
+
+  // bi_dir || multi_source is not written
+
+  best_model_stream.flush();
+  best_model_stream.close();
+  const_model_stream.close();
+}
+
 
 
 template <typename T>

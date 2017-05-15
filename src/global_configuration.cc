@@ -1517,6 +1517,7 @@ void GlobalConfiguration::AddOptions(boost::program_options::options_description
     ("fixed-halve-lr-full", p_options::value<int>(&epoch_to_start_halving_full_), "Full halve the learning rate")
     ("best-model", p_options::value<std::string>(&best_model_file_name_), "Output the best model\n <output file>")
     ("save-all-models", p_options::value<bool>(&dump_every_best__), "Save all best models\n DEFAULT: False")
+    ("save-last-epoch", p_options::value<int>(&dump_last_epoch__), "Number of minibatch to dump\n DEFAULT: 0")
     ("vocab-mapping-file", p_options::value<std::string>(&ensemble_train_file_name_), "Tune models with the same vocabulary\n"\
      " <model>")    
     ("random-seed", p_options::value<int>(&random_seed_int_), "Specify a random seed")
