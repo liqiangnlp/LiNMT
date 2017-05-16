@@ -25,7 +25,7 @@ Time  : 13:01                <br>
    $ ./configure --disable-multilib --enable-languages=c,c++       <br>
    $ make -j 4                                        <br>
    \# make install                                    <br>
-   $ ln -s /usr/local/lib64/libstdc++.so.6.0.20 path/NiuTrans.NMT // where you want to run NiuTrans.NMT, you should link libstdc++.6.0.20 <br>
+   $ ln -s /usr/local/lib64/libstdc++.so.6.0.20 path/LiNMT // where you want to run LiNMT, you should link libstdc++.6.0.20 <br>
 
 
 3. Install boost_1_55_0
@@ -51,9 +51,9 @@ Time  : 13:01                <br>
    $ nvidia-smi // check                                                             <br>
 
 
-5. Compile the NiuTrans.NMT
+5. Compile the LiNMT
 
-   $ cd NiuTrans.NMT/                                                                <br>
+   $ cd LiNMT/                                                                <br>
    $ tar xzvf eigen.tar.gz                                                           <br>
    $ make                                                                            <br>
    $ vim ~/.bashrc                                   // add 'export LD_LIBRARY_PATH=/usr/local/lib64:$LD_LIBRARY_PATH' <br>
@@ -62,14 +62,14 @@ Time  : 13:01                <br>
 
 6. Training a NMT model
 
-   $ cd NiuTrans.NMT/scripts/                                                        <br>
-   $ perl NiuTrans.NMT.pl -config ../config/NiuTrans.NMT-nmt-training.config         <br>
+   $ cd LiNMT/scripts/                                                        <br>
+   $ perl LiNMT.pl -config ../config/LiNMT-nmt-training.config         <br>
 
 
 7. Decoding a file with source sentences
 
-   $ cd NiuTrans.NMT/scripts/                                                        <br>
-   $ perl NiuTrans.NMT.pl -config ../config/NiuTrans.NMT-nmt-decoding.config         <br>
+   $ cd LiNMT/scripts/                                                        <br>
+   $ perl LiNMT.pl -config ../config/LiNMT-nmt-decoding.config         <br>
 
 
    
