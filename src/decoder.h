@@ -541,14 +541,20 @@ void Decoder<T>::OutputKBestHypotheses(int source_length, T lp_alpha, T cp_beta)
       for (int j = 1; j < v_hypotheses_[i].eigen_hypothesis_.size() - 1; ++j) {
         T sum = 0;
         for (int k = 0; k < source_length; ++k) {
-          //v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k) += 0.01;
-          //sum += v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k);
+          v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k) += 0.01;
+          sum += v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k);
+
+          /*
           v_hypotheses_[i].eigen_alignments_scores_(j).at(k) += 0.01;
           sum += v_hypotheses_[i].eigen_alignments_scores_(j).at(k);
+          */
         }
         for (int k = 0; k < source_length; ++k) {
-          //v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k) /= sum;
+          v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k) /= sum;
+          
+          /*
           v_hypotheses_[i].eigen_alignments_scores_(j).at(k) /= sum;
+          */
         }
       }  
 
@@ -557,8 +563,11 @@ void Decoder<T>::OutputKBestHypotheses(int source_length, T lp_alpha, T cp_beta)
       for (int k = 0; k < source_length; ++k) {
         T sum = 0;
         for (int j = 1; j < v_hypotheses_[i].eigen_hypothesis_.size() - 1; ++j) {
-          //sum += v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k);
+          sum += v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k);
+          
+          /*
           sum += v_hypotheses_[i].eigen_alignments_scores_(j).at(k);
+          */
         }
 
         cp_x_y += std::log(std::min(sum, (T)1.0));
@@ -613,8 +622,11 @@ void Decoder<T>::OutputKBestHypotheses(int source_length, T lp_alpha, T cp_beta)
       int alignment_number = 0;
       for (int j = 1; j < v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_.size() - 1; ++j) {
         ++alignment_number;
-        //output_<<" "<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j + 1);
+        output_<<" "<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j + 1);
+
+        /*
         output_<<" "<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j);
+        */
       }
       if (0 == alignment_number) {
         output_<<" ";
@@ -625,8 +637,11 @@ void Decoder<T>::OutputKBestHypotheses(int source_length, T lp_alpha, T cp_beta)
       for (int j = 1; j < v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_.size() - 1; ++j) {
         if (2 == v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_(j)) {
           ++unk_number;
-          //output_<<" "<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j + 1);
+          output_<<" "<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j + 1);
+
+          /*
           output_<<" "<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j);
+          */
         }
       }
       if (0 == unk_number) {
@@ -643,8 +658,11 @@ void Decoder<T>::OutputKBestHypotheses(int source_length, T lp_alpha, T cp_beta)
             if (0 != k) {
               output_<<"/";
             }
-            //output_<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_alignments_scores_(j + 1).at(k);
+            output_<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_alignments_scores_(j + 1).at(k);
+
+            /*
             output_<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_alignments_scores_(j).at(k);
+            */
           }
         }
         if (0 == alignments_scores_number) {
