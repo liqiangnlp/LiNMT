@@ -23,6 +23,9 @@
 
 namespace neural_machine_translation {
 
+
+#define ADD_ONE_ATTENTION
+
 #define UNCONST(t,c,uc) Eigen::MatrixBase<t> &uc = const_cast<Eigen::MatrixBase<t>&>(c);
 
 
@@ -541,20 +544,20 @@ void Decoder<T>::OutputKBestHypotheses(int source_length, T lp_alpha, T cp_beta)
       for (int j = 1; j < v_hypotheses_[i].eigen_hypothesis_.size() - 1; ++j) {
         T sum = 0;
         for (int k = 0; k < source_length; ++k) {
+#ifdef ADD_ONE_ATTENTION
           v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k) += 0.01;
           sum += v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k);
-
-          /*
+#else
           v_hypotheses_[i].eigen_alignments_scores_(j).at(k) += 0.01;
           sum += v_hypotheses_[i].eigen_alignments_scores_(j).at(k);
-          */
+#endif
         }
         for (int k = 0; k < source_length; ++k) {
+#ifdef ADD_ONE_ATTENTION
           v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k) /= sum;
-          
-          /*
+#else
           v_hypotheses_[i].eigen_alignments_scores_(j).at(k) /= sum;
-          */
+#endif
         }
       }  
 
@@ -563,11 +566,11 @@ void Decoder<T>::OutputKBestHypotheses(int source_length, T lp_alpha, T cp_beta)
       for (int k = 0; k < source_length; ++k) {
         T sum = 0;
         for (int j = 1; j < v_hypotheses_[i].eigen_hypothesis_.size() - 1; ++j) {
+#ifdef ADD_ONE_ATTENTION
           sum += v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k);
-          
-          /*
+#else
           sum += v_hypotheses_[i].eigen_alignments_scores_(j).at(k);
-          */
+#endif
         }
 
         cp_x_y += std::log(std::min(sum, (T)1.0));
@@ -622,11 +625,11 @@ void Decoder<T>::OutputKBestHypotheses(int source_length, T lp_alpha, T cp_beta)
       int alignment_number = 0;
       for (int j = 1; j < v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_.size() - 1; ++j) {
         ++alignment_number;
+#ifdef ADD_ONE_ATTENTION
         output_<<" "<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j + 1);
-
-        /*
+#else
         output_<<" "<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j);
-        */
+#endif
       }
       if (0 == alignment_number) {
         output_<<" ";
@@ -637,11 +640,11 @@ void Decoder<T>::OutputKBestHypotheses(int source_length, T lp_alpha, T cp_beta)
       for (int j = 1; j < v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_.size() - 1; ++j) {
         if (2 == v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_(j)) {
           ++unk_number;
+#ifdef ADD_ONE_ATTENTION
           output_<<" "<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j + 1);
-
-          /*
+#else
           output_<<" "<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j);
-          */
+#endif
         }
       }
       if (0 == unk_number) {
@@ -658,11 +661,11 @@ void Decoder<T>::OutputKBestHypotheses(int source_length, T lp_alpha, T cp_beta)
             if (0 != k) {
               output_<<"/";
             }
+#ifdef ADD_ONE_ATTENTION
             output_<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_alignments_scores_(j + 1).at(k);
-
-            /*
+#else
             output_<<v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_alignments_scores_(j).at(k);
-            */
+#endif
           }
         }
         if (0 == alignments_scores_number) {
@@ -716,11 +719,20 @@ void Decoder<T>::ObtainOneBestHypothesis(int source_length, T lp_alpha, T cp_bet
       for (int j = 1; j < v_hypotheses_[i].eigen_hypothesis_.size() - 1; ++j) {
         T sum = 0;
         for (int k = 0; k < source_length; ++k) {
+#ifdef ADD_ONE_ATTENTION
+          v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k) += 0.01;
+          sum += v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k);
+#else
           v_hypotheses_[i].eigen_alignments_scores_(j).at(k) += 0.01;
           sum += v_hypotheses_[i].eigen_alignments_scores_(j).at(k);
+#endif
         }
         for (int k = 0; k < source_length; ++k) {
+#ifdef ADD_ONE_ATTENTION
+          v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k) /= sum;
+#else
           v_hypotheses_[i].eigen_alignments_scores_(j).at(k) /= sum;
+#endif
         }
       }  
 
@@ -729,7 +741,11 @@ void Decoder<T>::ObtainOneBestHypothesis(int source_length, T lp_alpha, T cp_bet
       for (int k = 0; k < source_length; ++k) {
         T sum = 0;
         for (int j = 1; j < v_hypotheses_[i].eigen_hypothesis_.size() - 1; ++j) {
+#ifdef ADD_ONE_ATTENTION
+          sum += v_hypotheses_[i].eigen_alignments_scores_(j + 1).at(k);
+#else
           sum += v_hypotheses_[i].eigen_alignments_scores_(j).at(k);
+#endif
         }
 
         cp_x_y += std::log(std::min(sum, (T)1.0));
@@ -788,7 +804,11 @@ void Decoder<T>::ObtainOneBestHypothesis(int source_length, T lp_alpha, T cp_bet
       int alignment_number = 0;
       for (int j = 1; j < v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_.size() - 1; ++j) {
         ++alignment_number;
+#ifdef ADD_ONE_ATTENTION
+        output_sentence += " " + basic_method.IntToString(v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j + 1));
+#else
         output_sentence += " " + basic_method.IntToString(v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j));
+#endif
       }
       if (0 == alignment_number) {
         output_sentence += " ";
@@ -799,7 +819,11 @@ void Decoder<T>::ObtainOneBestHypothesis(int source_length, T lp_alpha, T cp_bet
       for (int j = 1; j < v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_.size() - 1; ++j) {
         if (2 == v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_hypothesis_(j)) {
           ++unk_number;
+#ifdef ADD_ONE_ATTENTION
+          output_sentence += " " + basic_method.IntToString(v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j + 1));
+#else
           output_sentence += " " + basic_method.IntToString(v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_viterbi_alignments_(j));
+#endif
         }
       }
       if (0 == unk_number) {
@@ -816,7 +840,11 @@ void Decoder<T>::ObtainOneBestHypothesis(int source_length, T lp_alpha, T cp_bet
             if (0 != k) {
               output_sentence += "/";
             }
+#ifdef ADD_ONE_ATTENTION
+            output_sentence += basic_method.FloatToString(v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_alignments_scores_(j + 1).at(k));
+#else
             output_sentence += basic_method.FloatToString(v_hypotheses_[pq_best_hypotheses_tmp.top().index_].eigen_alignments_scores_(j).at(k));
+#endif
           }
         }
         if (0 == alignments_scores_number) {
