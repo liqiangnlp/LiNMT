@@ -134,8 +134,25 @@ void BytePairEncoding::Segment(const std::string &input_codes_file_name, const s
     basic_method_.ClearIllegalChar(input_sentence);
     basic_method_.RmStartSpace(input_sentence);
     basic_method_.RmEndSpace(input_sentence);
+
+    std::vector<std::string> v_string_generalization;
+    basic_method_.SplitWithString(input_sentence, " |||| " ,v_string_generalization);
+
     std::string output_sentence;
-    SegmentBpe(input_sentence, output_sentence);
+    if (0 == v_string_generalization.size()) {
+      output_sentence = "";
+    } else {
+      SegmentBpe(v_string_generalization.at(0), output_sentence);
+      if (2 == v_string_generalization.size()) {
+        std::string output_generalization;
+        if (output_sentence == v_string_generalization.at(0)) {
+          output_generalization = v_string_generalization.at(1);
+        } else {
+          ModifyGeneralization(output_sentence, v_string_generalization.at(1), output_generalization);
+        }
+        output_sentence += " |||| " + output_generalization;
+      }
+    }
     out_file<<output_sentence<<"\n"<<std::flush;
     end_total = std::chrono::system_clock::now();    // start time
     elapsed_seconds = end_total - start_total;
@@ -153,6 +170,50 @@ void BytePairEncoding::Segment(const std::string &input_codes_file_name, const s
   */
   return;
 }
+
+
+void BytePairEncoding::ModifyGeneralization(const std::string &segmented_string, const std::string &raw_generalization, std::string &modified_generalization) {
+  //modified_generalization = "modified " + raw_generalization;
+  std::vector<std::string> v_segmented_words;
+  basic_method_.Split(segmented_string, ' ', v_segmented_words);
+  std::string input_generalization(raw_generalization.substr(1, raw_generalization.size() - 2));
+  //modified_generalization = input_generalization;
+  std::vector<std::string> v_generalizations;
+  basic_method_.SplitWithString(input_generalization, "}{", v_generalizations);
+  int last_modified_position = -1;
+  for (std::vector<std::string>::iterator iter = v_generalizations.begin(); iter != v_generalizations.end(); ++iter) {
+    std::vector<std::string> v_generalizations_details;
+    basic_method_.SplitWithString(*iter, " ||| ", v_generalizations_details);
+    int i = std::atoi(v_generalizations_details.at(0).c_str());
+    int j = std::atoi(v_generalizations_details.at(1).c_str());
+    int steps = 0;
+    for (int k = 0; k < v_segmented_words.size(); ++k) {
+      if (v_segmented_words.at(k).size() > 2) {
+
+        if (k >= i && k > last_modified_position && v_segmented_words.at(k) == v_generalizations_details.at(3)) {
+          last_modified_position = k;
+          break;
+        }
+        std::string tmp_string(v_segmented_words.at(k).substr(v_segmented_words.at(k).size() - 2, v_segmented_words.at(k).size() - 1));
+        if ("@@" == tmp_string) {
+          ++steps;
+        }
+      }
+    }
+    i += steps;
+    j += steps;
+    modified_generalization += "{" + basic_method_.IntToString(i) + " ||| "+ \
+                               basic_method_.IntToString(j) + " ||| " + \
+                               v_generalizations_details.at(2) + " ||| " + \
+                               v_generalizations_details.at(3) + " ||| " + \
+                               v_generalizations_details.at(4) + "}";
+
+    
+  }
+  return;
+}
+
+
 
 
 void BytePairEncoding::TrainBpe(std::ofstream &out_file, std::ofstream &out_log) {
@@ -595,15 +656,67 @@ void BytePairEncoding::GetMinBigram(const std::set<std::string> &s_bigrams, std:
 
 
 
-
-
-
-
-
-
-
-
 } // End of namespace neural_machine_translation
+
+
+char *bpe_segment_result__ = NULL;
+neural_machine_translation::BytePairEncoding byte_pair_encoding__; 
+//neural_machine_translation::DecoderSentence decoder_sentence__;
+
+void python_bpe_segment_init(char *msg) {
+  std::cerr<<"cpp::python_bpe_segment_init::msg="<<msg<<"\n"<<std::flush;
+  std::ifstream in_codes_file(msg);
+  if (!in_codes_file) {
+    std::cerr<<"   Error: can not open "<<msg<<"\n"<<std::flush;
+    exit(EXIT_FAILURE);
+  }
+  byte_pair_encoding__.LoadCodes(in_codes_file);
+  in_codes_file.close();
+}
+
+char* python_bpe_segment_do_job(char *sentence) {
+  if (bpe_segment_result__ != NULL) {
+    delete[] bpe_segment_result__;
+  }
+
+  std::string input_sentence(sentence);
+  byte_pair_encoding__.basic_method_.ClearIllegalChar(input_sentence);
+  byte_pair_encoding__.basic_method_.RmStartSpace(input_sentence);
+  byte_pair_encoding__.basic_method_.RmEndSpace(input_sentence);
+
+
+  std::vector<std::string> v_string_generalization;
+  byte_pair_encoding__.basic_method_.SplitWithString(input_sentence, " |||| " ,v_string_generalization);
+
+  std::string output_sentence;
+  if (0 == v_string_generalization.size()) {
+    output_sentence = "";
+  } else {
+    byte_pair_encoding__.SegmentBpe(v_string_generalization.at(0), output_sentence);
+    if (2 == v_string_generalization.size()) {
+      std::string output_generalization;
+      if (output_sentence == v_string_generalization.at(0)) {
+        output_generalization = v_string_generalization.at(1);
+      } else {
+        byte_pair_encoding__.ModifyGeneralization(output_sentence, v_string_generalization.at(1), output_generalization);
+      }
+      output_sentence += " |||| " + output_generalization;
+    }
+  }
+
+#ifdef WIN32
+  bpe_segment_result__ = new char[ output_sentence.size() + 1 ];
+  strcpy_s(bpe_segment_result__, output_sentence.size() + 1, output_sentence.c_str());
+#else
+  bpe_segment_result__ = new char[ output_sentence.size() + 1 ];
+  strncpy(bpe_segment_result__, output_sentence.c_str(), output_sentence.size() + 1);
+#endif
+
+  return bpe_segment_result__;
+}
+
+
+
 
 
 

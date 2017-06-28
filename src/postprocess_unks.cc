@@ -214,6 +214,7 @@ void PostProcessUnks::LoadEndPunctuation(std::string &unk_stopword_file_name) {
 }
 
 
+
 void PostProcessUnks::Processing(std::string &line_source, std::string &line_nmt_translation, \
                                  std::string &line_output, bool &output_oov_mode) {
   basic_method_.ClearIllegalChar(line_nmt_translation);
@@ -318,6 +319,11 @@ void PostProcessUnks::Processing(std::string &line_source, std::string &line_nmt
   std::vector<std::string> v_target_align_scores;
   basic_method_.Split(line_source, ' ', v_source_words);
   basic_method_.Split(v_translation_fields[0], ' ', v_target_words);
+  // for sentence segmentation
+  if (v_target_words.size() > 0 && "." == v_target_words.at(v_target_words.size() - 1) && 
+      v_source_words.size() > 0 && "," == v_source_words.at(v_source_words.size() - 1)) {
+    v_target_words.at(v_target_words.size() - 1) = ",";
+  }
   basic_method_.Split(v_translation_fields[4], ' ', v_target_align_scores);
 
   std::istringstream iss_align(v_translation_fields[2], std::istringstream::in);

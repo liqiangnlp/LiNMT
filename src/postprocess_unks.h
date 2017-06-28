@@ -57,6 +57,7 @@ private:
   void LoadEndPunctuation(std::string &unk_stopword_file_name);
   void Processing(std::string &line_source, std::string &line_nmt_translation, std::string &line_output, bool &output_oov_mode);
 
+
 public:
   /*
   void FindNumber(std::unordered_map<int, std::string> &uno_generalization_number, std::string &align_scores, \

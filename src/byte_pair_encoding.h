@@ -102,6 +102,9 @@ public:
   void Train(const int &vocabulary_size, const int &min_frequency, const std::string &input_file_name, const std::string &output_file_name);
   void Segment(const std::string &input_codes_file_name, const std::string &input_file_name, const std::string &output_file_name);
 
+public:
+  void ModifyGeneralization(const std::string &segmented_string, const std::string &raw_generalization, std::string &modified_generalization);
+
 private:
   void TrainBpe(std::ofstream &out_file, std::ofstream &out_log);
 
@@ -118,15 +121,24 @@ private:
   //void GetMaxValueHashMap(const std::hash_map<std::string, int> &in_hash_map, std::string &out_key, int &out_max_value);
   void GetMaxValueHashMap(const std::unordered_map<std::string, int> &in_hash_map, std::string &out_key, int &out_max_value);
 
-private:
+public:
   void LoadCodes(std::ifstream &in_codes_file);
   void SegmentBpe(const std::string &input_sentence, std::string &output_sentence);
+
+private:
   void EncodeBpe(const std::string &input_word, std::string &output_string);
   void GetBigramSet(const std::vector<std::string> &v_characters, std::set<std::string> &s_bigrams);
   void GetMinBigram(const std::set<std::string> &s_bigrams, std::string &bigram);
 };
 
 } // End of namespace neural_machine_translation
+
+
+
+extern "C" {
+  void python_bpe_segment_init(char *msg);
+  char* python_bpe_segment_do_job(char *sentence);
+}
 
 
 
