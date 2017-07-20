@@ -72,6 +72,7 @@ Time  : 13:01                <br>
    $ perl LiNMT.pl -config ../config/LiNMT-nmt-decoding.config         <br>
    
 8. Features
+
    8.1 Train neural machine translation system  <br>
    8.2 decoder sentences with NMT model         <br>
    8.3 Train bpe model                          <br>
