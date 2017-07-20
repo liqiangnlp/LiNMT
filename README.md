@@ -1,6 +1,6 @@
 # LiNMT
 
-NMT developed by Qiang Li
+Neural Machine Translation system developed by Qiang Li
 
 Email : liqiangneu@gmail.com <br>
 Date  : 10/30/2016           <br>
@@ -70,6 +70,14 @@ Time  : 13:01                <br>
 
    $ cd LiNMT/scripts/                                                        <br>
    $ perl LiNMT.pl -config ../config/LiNMT-nmt-decoding.config         <br>
+   
+8. Features
+   8.1 Train neural machine translation system
+   8.2 decoder sentences with NMT model
+   8.3 Train bpe model
+   8.4 Segment with bpe model
+   8.5 library for python
+   8.6 simple service interface
 
 
    
