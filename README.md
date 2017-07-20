@@ -1,6 +1,6 @@
-# NMT.Qiang
+# LiNMT
 
-NMT developed by Qiang
+NMT developed by Qiang Li
 
 Email : liqiangneu@gmail.com <br>
 Date  : 10/30/2016           <br>
