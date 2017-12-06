@@ -55,6 +55,11 @@ public:
   std::vector<HiddenToHiddenLayer<T>> v_hidden_layers_target_;    // target hidden layers of model
 
 public:
+  InputToHiddenLayer<T> input_layer_source_bi_;
+  std::vector<HiddenToHiddenLayer<T>> v_hidden_layers_source_bi_;
+  AnotherEncoder<T> another_encoder_layer_;
+
+public:
   FileHelper *p_file_information_;
 
 public:
@@ -750,8 +755,12 @@ void NeuralMachineTranslation<T>::InitModelDecoding(int lstm_size, int beam_size
     PrintGpuInformation();
 
     if (multi_source_mode) {
-      // multi_source_mode is not written //
-      ;
+      input_layer_source_bi_.input_hidden_layer_information_ = input_layer_source_.input_hidden_layer_information_;
+      input_layer_source_bi_.InitInputToHiddenLayer(lstm_size, minibatch_size, source_vocab_size, longest_sentence, \
+                                                    debug_mode, learning_rate, clip_gradients_mode, norm_clip, \
+                                                    this, 101, false, 0, false, false, NULL, false, config, true);
+      logger<<"\n>> (Layer 1) Source Input layer was initialized (another encoder)\n";
+      PrintGpuInformation();
     }
   }
 
@@ -791,7 +800,11 @@ void NeuralMachineTranslation<T>::InitModelDecoding(int lstm_size, int beam_size
   }
 
   if (multi_source_mode) {
-    // multi_source_mode is not written
+    std::vector<int> v_final_gpu_indices;
+    for (int i = 0; i < num_layers; ++i) {
+      v_final_gpu_indices.push_back(gpu_num);
+    }
+    another_encoder_layer_.InitLayerDecoder(this, gpu_num, combine_lstm_mode, lstm_size, num_layers);
   }
 
   input_weight_file_ = input_weight_file;
@@ -809,7 +822,7 @@ void NeuralMachineTranslation<T>::InitModelDecoding(int lstm_size, int beam_size
     }
 
     if (multi_source_mode) {
-      // multi_source_mode is not written
+      v_hidden_layers_source_bi_.push_back(HiddenToHiddenLayer<T>());
     }
 
     v_hidden_layers_target_.push_back(HiddenToHiddenLayer<T>());
@@ -828,7 +841,12 @@ void NeuralMachineTranslation<T>::InitModelDecoding(int lstm_size, int beam_size
     }
 
     if (multi_source_mode) {
-      // multi_source_mode is not written  
+      v_hidden_layers_source_bi_[i - 1].hidden_hidden_layer_information_ = input_layer_target_.input_hidden_layer_information_;
+      v_hidden_layers_source_bi_[i - 1].InitHiddenToHiddenLayer(lstm_size, minibatch_size, longest_sentence, debug_mode, learning_rate, \
+                                                                clip_gradients_mode, norm_clip, this, 103, false, 0, false, i);
+
+      logger<<"\n>> (Layer "<<(i+1)<<") Source Hidden layer was initialized (another encoder)\n";
+      PrintGpuInformation();
     }
 
     v_hidden_layers_target_[i - 1].hidden_hidden_layer_information_ = input_layer_target_.input_hidden_layer_information_;
@@ -846,14 +864,14 @@ void NeuralMachineTranslation<T>::InitModelDecoding(int lstm_size, int beam_size
     p_softmax_layer_->InitLowerTransferLayer(true, true, &input_layer_target_, NULL);
 
     if (multi_source_mode) {
-      // multi_source_mode is not written
+      input_layer_source_bi_.upper_layer_.InitUpperTransferLayer(true, true, true, p_softmax_layer_, NULL);
     }
   } else {
     input_layer_source_.upper_layer_.InitUpperTransferLayer(false, true, true, NULL, &v_hidden_layers_source_[0]);
     input_layer_target_.upper_layer_.InitUpperTransferLayer(false, true, false, NULL, &v_hidden_layers_target_[0]);
 
     if (multi_source_mode) {
-      // multi_source_mode is not written
+      input_layer_source_bi_.upper_layer_.InitUpperTransferLayer(false, true, true, NULL, &v_hidden_layers_source_bi_[0]);
     }
 
     for (int i = 0; i < v_hidden_layers_target_.size(); ++i) {
@@ -863,14 +881,14 @@ void NeuralMachineTranslation<T>::InitModelDecoding(int lstm_size, int beam_size
         v_hidden_layers_target_[0].lower_layer_.InitLowerTransferLayer(true, true, &input_layer_target_, NULL);
 
         if (multi_source_mode) {
-          // multi_source_mode is not written
+          v_hidden_layers_source_bi_[0].lower_layer_.InitLowerTransferLayer(true, true, &input_layer_source_bi_, NULL);
         }
       } else {
         v_hidden_layers_source_[i].lower_layer_.InitLowerTransferLayer(false, true, NULL, &v_hidden_layers_source_[i - 1]);
         v_hidden_layers_target_[i].lower_layer_.InitLowerTransferLayer(false, true, NULL, &v_hidden_layers_target_[i - 1]);
 
         if (multi_source_mode) {
-          // multi_source_mode is not written
+          v_hidden_layers_source_bi_[i].lower_layer_.InitLowerTransferLayer(false, true, NULL, &v_hidden_layers_source_bi_[i - 1]);
         }
       }
 
@@ -881,14 +899,14 @@ void NeuralMachineTranslation<T>::InitModelDecoding(int lstm_size, int beam_size
         p_softmax_layer_->InitLowerTransferLayer(false, true, NULL, &v_hidden_layers_target_[i]);
 
         if (multi_source_mode) {
-          // multi_source_mode is not written
+          v_hidden_layers_source_bi_[i].upper_layer_.InitUpperTransferLayer(true, true, true, p_softmax_layer_, NULL);
         }
       } else {
         v_hidden_layers_source_[i].upper_layer_.InitUpperTransferLayer(false, true, true, NULL, &v_hidden_layers_source_[i + 1]);
         v_hidden_layers_target_[i].upper_layer_.InitUpperTransferLayer(false, true, false, NULL, &v_hidden_layers_target_[i + 1]);
 
         if (multi_source_mode) {
-          // multi_source_mode is not written
+          v_hidden_layers_source_bi_[i].upper_layer_.InitUpperTransferLayer(false, true, true, NULL, &v_hidden_layers_source_bi_[i + 1]);
         }
       }
     }
@@ -952,7 +970,9 @@ void NeuralMachineTranslation<T>::InitPreviousStates(int num_layers, int lstm_si
     previous_target_state.Init(lstm_size, minibatch_size);
     v_previous_target_states_.push_back(previous_target_state);
     if (multi_source_mode) {
-      // multi_source_mode is not written
+      PreviousSourceState<T> previous_source_state_bi;
+      previous_source_state_bi.Init(lstm_size);
+      v_previous_source_states_bi_.push_back(previous_source_state_bi);
     }
   }
 }
@@ -1628,7 +1648,71 @@ void NeuralMachineTranslation<T>::ForwardPropSource(int *p_device_input_vocab_in
   DeviceSyncAll();
 
   if (multi_source_mode_) {
-    // multi_source_mode_ is not written
+    input_layer_source_bi_.v_nodes_[0].UpdateVectorsForwardGpu(p_device_input_vocab_indices_source_bi, p_device_ones, \
+                                                               input_layer_source_bi_.p_device_init_hidden_vec_, input_layer_source_bi_.p_device_init_cell_vec_);
+    input_layer_source_bi_.v_nodes_[0].ForwardProp();
+  
+    DeviceSyncAll();
+
+    for (int i = 0; i < v_hidden_layers_source_bi_.size(); ++i) {
+      v_hidden_layers_source_bi_[i].v_nodes_[0].UpdateVectorsForwardGpu(p_device_ones, v_hidden_layers_source_bi_[i].p_device_init_hidden_vector_, \
+                                                                        v_hidden_layers_source_bi_[i].p_device_init_cell_vector_);
+      v_hidden_layers_source_bi_[i].v_nodes_[0].ForwardProp();
+    }
+
+    DeviceSyncAll();
+
+    if (attention_configuration_.attention_model_mode_) {
+      if (v_hidden_layers_source_bi_.size() == 0) {
+        for (int i = 0; i < input_layer_target_.minibatch_size_; ++i) {
+          CudaErrorWrapper(cudaMemcpy(v_top_source_states_v2_[0] + lstm_size * i, input_layer_source_bi_.v_nodes_[0].p_device_h_t_, \
+                           lstm_size * 1 * sizeof(T), cudaMemcpyDeviceToDevice), "GPU fprop attention copy decoder source\n");
+        }
+      } else {
+        for (int i = 0; i < input_layer_target_.minibatch_size_; ++i) {
+          CudaErrorWrapper(cudaMemcpy(v_top_source_states_v2_[0] + lstm_size * i, v_hidden_layers_source_bi_[v_hidden_layers_source_bi_.size() - 1].v_nodes_[0].p_device_h_t_, lstm_size * 1 * sizeof(T), cudaMemcpyDeviceToDevice), "GPU fprop attention copy decoder source\n");
+        }
+      }
+    }
+
+    DeviceSyncAll();
+    for (int i = 1; i < source_length_bi; ++i) {
+      CudaErrorWrapper(cudaMemcpy(v_previous_source_states_bi_[0].p_device_h_t_previous_, input_layer_source_bi_.v_nodes_[0].p_device_h_t_, lstm_size * 1 * sizeof(T), cudaMemcpyDeviceToDevice), "GPU memory allocation failed s1\n");
+      CudaErrorWrapper(cudaMemcpy(v_previous_source_states_bi_[0].p_device_c_t_previous_, input_layer_source_bi_.v_nodes_[0].p_device_c_t_, lstm_size * 1 * sizeof(T), cudaMemcpyDeviceToDevice), "GPU memory allocation failed s2\n");
+
+      for (int j = 0; j < v_hidden_layers_source_bi_.size(); ++j) {
+        CudaErrorWrapper(cudaMemcpy(v_previous_source_states_bi_[j + 1].p_device_h_t_previous_, v_hidden_layers_source_bi_[j].v_nodes_[0].p_device_h_t_, lstm_size * 1 * sizeof(T), cudaMemcpyDeviceToDevice), "GPU memory allocation failed s3\n");
+        CudaErrorWrapper(cudaMemcpy(v_previous_source_states_bi_[j + 1].p_device_c_t_previous_, v_hidden_layers_source_bi_[j].v_nodes_[0].p_device_c_t_, lstm_size * 1 * sizeof(T), cudaMemcpyDeviceToDevice), "GPU memory allocation failed s4\n");
+      }
+
+      input_layer_source_bi_.v_nodes_[0].UpdateVectorsForwardGpu(p_device_input_vocab_indices_source_bi + i, p_device_ones, \
+                                                                 v_previous_source_states_bi_[0].p_device_h_t_previous_, v_previous_source_states_bi_[0].p_device_c_t_previous_);
+      input_layer_source_bi_.v_nodes_[0].ForwardProp();
+
+      for (int j = 0; j < v_hidden_layers_source_bi_.size(); ++j) {
+        v_hidden_layers_source_bi_[j].v_nodes_[0].UpdateVectorsForwardGpu(p_device_ones, v_previous_source_states_bi_[j+1].p_device_h_t_previous_, v_previous_source_states_bi_[j+1].p_device_c_t_previous_);
+        v_hidden_layers_source_bi_[j].v_nodes_[0].ForwardProp();
+      }
+
+      DeviceSyncAll();
+
+      if (attention_configuration_.attention_model_mode_) {
+        if (v_hidden_layers_source_bi_.size() == 0) {
+          for (int j = 0; j < input_layer_target_.minibatch_size_; ++j) {
+            CudaErrorWrapper(cudaMemcpy(v_top_source_states_v2_[i] + j * lstm_size, input_layer_source_bi_.v_nodes_[0].p_device_h_t_, lstm_size * 1 * sizeof(T), cudaMemcpyDeviceToDevice), "GPU fprop attention copy decoder source\n");
+          }
+        } else {
+          for (int j = 0; j < input_layer_target_.minibatch_size_; ++j) {
+            CudaErrorWrapper(cudaMemcpy(v_top_source_states_v2_[i] + j * lstm_size, v_hidden_layers_source_bi_[v_hidden_layers_source_bi_.size() - 1].v_nodes_[0].p_device_h_t_, lstm_size * 1 * sizeof(T), cudaMemcpyDeviceToDevice), "GPU fprop attention copy decoder source\n");
+          }
+        }
+      }
+      DeviceSyncAll();
+    }
+    DeviceSyncAll();
+
+    another_encoder_layer_.ForwardProp();
+    DeviceSyncAll();
   }
 
   if (tsne_dump_mode__) {
@@ -1681,7 +1765,14 @@ void NeuralMachineTranslation<T>::ForwardPropTarget(int curr_index, int *p_devic
 
   if (curr_index == 0) {
     if (multi_source_mode_) {
-      // multi_source_mode_ is not written
+      input_layer_target_.TransferDecodingStatesGpu(another_encoder_layer_.v_p_device_hs_final_target_[0], another_encoder_layer_.v_p_device_ct_final_target_[0]);
+      for (int i = 0; i < v_hidden_layers_source_.size(); ++i) {
+        v_hidden_layers_target_[i].TransferDecodingStatesGpu(another_encoder_layer_.v_p_device_hs_final_target_[i + 1], another_encoder_layer_.v_p_device_ct_final_target_[i + 1]);
+      }
+      input_layer_target_.v_nodes_[0].UpdateVectorsForwardDecoder(p_device_current_indices, p_device_ones);
+      for (int i = 0; i < v_hidden_layers_source_.size(); ++i) {
+        v_hidden_layers_target_[i].v_nodes_[0].UpdateVectorsForwardDecoder(p_device_ones);
+      }
     } else {
       input_layer_target_.TransferDecodingStatesGpu(input_layer_source_.v_nodes_[0].p_device_h_t_, \
                                                     input_layer_source_.v_nodes_[0].p_device_c_t_);
@@ -1831,7 +1922,6 @@ void NeuralMachineTranslation<T>::LoadWeights() {
   logger<<"Done\n";
 
   if (attention_configuration_.feed_input_mode_ && decode_mode_) {
-    // feed_input_mode and decode_mode is not written
     logger<<"             Feed input loading ... ";
     input_layer_target_.LoadWeightsDecoderFeedInput(input_stream_);
     logger<<"Done\n";
@@ -1861,7 +1951,18 @@ void NeuralMachineTranslation<T>::LoadWeights() {
   logger<<"Done\n";
 
   if (bi_dir_mode_ || multi_source_mode_) {
-    // bi_dir_mode_ and multi_source_mode_ is not written
+    input_layer_source_bi_.LoadWeights(input_stream_);
+    for (int i = 0; i < v_hidden_layers_source_bi_.size(); ++i) {
+      v_hidden_layers_source_bi_[i].LoadWeights(input_stream_);
+    }
+
+    if (bi_dir_mode_) {
+      ; // not written
+    }
+
+    if (multi_source_mode_) {
+      another_encoder_layer_.LoadWeights(input_stream_);
+    }
   }
 
   input_stream_.close();

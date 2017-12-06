@@ -191,6 +191,15 @@ bool BasicMethod::ClearIllegalChar(std::string &str) {
 }
 
 
+bool BasicMethod::UnBpe(std::string &input) {
+  std::string::size_type pos = 0;
+  while((pos = input.find("@@ ", pos)) != std::string::npos) {
+    input.replace(pos, 3, "");
+  }
+  return true;
+}
+
+
 bool BasicMethod::RmEndSpace(std::string &str) {
   if (str != "") {
     std::string tmpStr;
@@ -250,6 +259,16 @@ bool BasicMethod::RemoveAllSpace(const std::string &input_string, std::string &o
   std::string::size_type pos;
   while ((pos = output_string.find(" ")) != std::string::npos) {
     output_string.replace(pos, 1, "");
+  }
+  return true;
+}
+
+
+bool BasicMethod::RemoveDoubleUnderline(const std::string &input_string, std::string &output_string) {
+  output_string = input_string;
+  std::string::size_type pos;
+  while ((pos = output_string.find("__")) != std::string::npos) {
+    output_string.replace(pos, 2, "");
   }
   return true;
 }

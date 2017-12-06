@@ -272,6 +272,8 @@ void PostProcessUnks::Processing(std::string &line_source, std::string &line_nmt
             uno_generalization_person[atoi(v_fields_tmp.at(0).c_str())] = v_fields_tmp.at(2);
           } else if ("$loc" == v_fields_tmp.at(3)) {
             uno_generalization_location[atoi(v_fields_tmp.at(0).c_str())] = v_fields_tmp.at(2);
+          } else if ("$location" == v_fields_tmp.at(3)) {
+            uno_generalization_location[atoi(v_fields_tmp.at(0).c_str())] = v_fields_tmp.at(2);
           } else if ("$org" == v_fields_tmp.at(3)) {
             uno_generalization_organization[atoi(v_fields_tmp.at(0).c_str())] = v_fields_tmp.at(2);
           } else if ("$literal" == v_fields_tmp.at(3)) {
@@ -368,7 +370,11 @@ void PostProcessUnks::Processing(std::string &line_source, std::string &line_nmt
                 logger<<"\n   Warning: format error in generalization\n";
               }
             } else if (0 != uno_dict_.count(v_source_words[position])) {
+#ifdef JUST_FOR_ZH_TO_PT
+              line_output += " <UNK-" + uno_dict_[v_source_words[position]] + ">";
+#else
               line_output += " " + uno_dict_[v_source_words[position]];
+#endif
             } else {
               if (output_oov_mode) {
                 line_output += " <" + v_source_words[position] + ">";
@@ -385,6 +391,7 @@ void PostProcessUnks::Processing(std::string &line_source, std::string &line_nmt
               "$day" != v_source_words[v_target_align[i]] && \
               "$psn" != v_source_words[v_target_align[i]] && \
               "$loc" != v_source_words[v_target_align[i]] && \
+              "$location" != v_source_words[v_target_align[i]] && \
               "$org" != v_source_words[v_target_align[i]] && \
               "$literal" != v_source_words[v_target_align[i]] && \
               "$userdict1" != v_source_words[v_target_align[i]] && \
@@ -397,7 +404,11 @@ void PostProcessUnks::Processing(std::string &line_source, std::string &line_nmt
               "$userdict8" != v_source_words[v_target_align[i]] && \
               "$userdict9" != v_source_words[v_target_align[i]] && \
               "$userdict10" != v_source_words[v_target_align[i]]) {
+#ifdef JUST_FOR_ZH_TO_PT
+            line_output += " <UNK-" + uno_dict_[v_source_words[v_target_align[i]]] + ">";
+#else
             line_output += " " + uno_dict_[v_source_words[v_target_align[i]]];
+#endif
           } else {            
             int position = -1;
             FindUnStopword(v_target_align_scores[i], v_source_words, position);
@@ -452,6 +463,9 @@ void PostProcessUnks::Processing(std::string &line_source, std::string &line_nmt
     } else if ("$loc" == v_target_words[i]) {
       TargetIsGeneralization(uno_generalization_location, v_source_words, v_target_align, v_target_align_scores, i, \
                              output_oov_mode, "<$loc>",line_output);
+    } else if ("$location" == v_target_words[i]) {
+      TargetIsGeneralization(uno_generalization_location, v_source_words, v_target_align, v_target_align_scores, i, \
+                             output_oov_mode, "<$location>",line_output);
     } else if ("$org" == v_target_words[i]) {
       TargetIsGeneralization(uno_generalization_organization, v_source_words, v_target_align, v_target_align_scores, i, \
                              output_oov_mode, "<$org>",line_output);
@@ -562,6 +576,31 @@ void PostProcessUnks::Processing(std::string &line_source, std::string &line_nmt
       last_end_punctuation = false;
     }
   }
+
+
+#ifdef JUST_FOR_ZH_TO_PT
+  if (line_output.find("<UNK-") != std::string::npos) {
+    basic_method_.UnBpe(line_output);
+    std::vector<std::string> v_words;
+    basic_method_.Split(line_output, ' ', v_words);
+    std::string line_output_tmp = line_output;
+    line_output = "";
+    for (int i = 0; i < v_words.size(); ++i) {
+      if ('<' == v_words.at(i).at(0) && 'U' == v_words.at(i).at(1) &&
+          'N' == v_words.at(i).at(2) && 'K' == v_words.at(i).at(3) &&
+          '-' == v_words.at(i).at(4) && '>' == v_words.at(i).at(v_words.at(i).size() - 1)) {
+        std::string sub_str = v_words.at(i).substr(5, v_words.at(i).size() - 6);
+        line_output += " " + sub_str;
+        if (i < v_words.size() - 1 && sub_str.find(v_words.at(i + 1)) != std::string::npos) {
+          i += 1;
+        }
+      } else {
+        line_output += " " + v_words.at(i);
+      }
+    }
+  }
+  basic_method_.RmStartSpace(line_output);
+#endif
 
   for (int i = 1; i < v_translation_fields.size(); ++i) {
     line_output += " |||| " + v_translation_fields[i];

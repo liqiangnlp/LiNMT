@@ -153,6 +153,16 @@ public:
   std::string bpe_input_codes_file_name_;    // Input codes file name
   std::string bpe_input_file_name_;          // Input file name
   std::string bpe_output_file_name_;         // Output file name
+
+public:
+  bool train_pbpe_mode_ = false;              // If you want to train phrase bpe model
+  bool segment_pbpe_mode_ = false;            // use phrase bpe codes to segment
+  int pbpe_vocabulary_size_ = 1000;           // Default 1000
+  int pbpe_min_frequency_ = 2;                // Default 2
+  std::string pbpe_input_codes_file_name_;    // Input codes file name
+  std::string pbpe_input_punct_file_name_;          // Punct file name
+  std::string pbpe_input_file_name_;          // Input file name
+  std::string pbpe_output_file_name_;         // Output file name
   
 public:
   bool sequence_to_sequence_mode_ = true;    // If true it is only a sequence-to-sequence model, not sequence
@@ -239,11 +249,18 @@ public:
   std::string decode_sentence_output_file_;
 
 public:
+  bool decode_sentence_twoencs_mode_ = false;
+  std::string decode_sentence_twoencs_config_file_;
+  std::string decode_sentence_twoencs_input_file_;
+  std::string decode_sentence_twoencs_input_another_file_;
+  std::string decode_sentence_twoencs_output_file_;
+
+public:
   //std::vector<std::string> bpe_parameters_;                // parameters for bpe
 
 public:
   std::vector<std::string> decode_user_files_;             // source file being decoded 
-  std::vector<std::string> decode_user_files_additional_;  // source file being decoded
+  std::vector<std::string> decode_user_files_additional_;  // source file in another encoder being decoded
   std::vector<std::string> decode_tmp_files_;              // one for each model being decoded
   std::vector<std::string> decode_tmp_files_additional_;   // one for each model being decoded
   std::string decoder_output_file_ = "NULL";               // decoder output in tmp before integerization
@@ -355,6 +372,7 @@ public:
   void Decoding(boost::program_options::variables_map &v_map, std::vector<std::string> &kbest_files, \
                 std::vector<precision> &decoding_ratio, std::vector<int> &gpu_indices);
   void DecodingSentence(std::vector<std::string> &v_decoding_sentences);
+  void DecodingSentenceTwoEncoders(std::vector<std::string> &v_decoding_sentences_twoencs);
 
 
 public:
@@ -380,16 +398,21 @@ public:
   void SegmentBytePairEncoding(boost::program_options::variables_map &v_map, std::vector<std::string> &v_parameters_of_bpe);
 
 public:
+  void TrainPhraseBytePairEncoding(boost::program_options::variables_map &v_map, std::vector<std::string> &v_parameters_of_phrase_bpe);
+  void SegmentPhraseBytePairEncoding(boost::program_options::variables_map &v_map, std::vector<std::string> &v_parameters_of_phrase_bpe);
+
+public:
   void OptionsSetByUser(boost::program_options::variables_map &v_map);
   void AddOptions(boost::program_options::options_description &description, std::vector<std::string> &training_files, \
                   std::vector<std::string> &continue_train, std::vector<std::string> &test_files, \
                   std::vector<std::string> &kbest_files, std::vector<std::string> &v_decoding_sentences, \
+                  std::vector<std::string> &v_decoding_sentences_anenc, \
                   std::vector<std::string> &v_postprocess_unk, std::vector<precision> &decoding_ratio, \
                   std::vector<int> &gpu_indices, std::vector<precision> &lower_upper_range, \
                   std::vector<std::string> &adaptive_learning_rate, std::vector<precision> &clip_cell_values, \
                   std::vector<std::string> &v_bleu_score, std::vector<std::string> &v_average_models, \
                   std::vector<std::string> &v_vocabulary_replacement, std::vector<std::string> &v_words_embeddings, \
-				  std::vector<std::string> &v_parameters_of_bpe);
+                  std::vector<std::string> &v_parameters_of_bpe, std::vector<std::string> &v_parameters_of_phrase_bpe);
 
 
 

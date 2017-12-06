@@ -932,6 +932,9 @@ public:
             std::string multi_source_integerized_file, int longest_sentence, GlobalConfiguration &config);
 
   void InitDecoderSentence(int gpu_num, int beam_size, std::string main_weight_file, int longest_sentence, GlobalConfiguration &config);
+  void InitDecoderSentenceTwoEncoders(int gpu_num, int beam_size, \
+                                      std::string main_weight_file, std::string multi_src_weight_file, \
+                                      int longest_sentence, GlobalConfiguration &config);
 
 
 public:
@@ -940,6 +943,7 @@ public:
 public:
   void MemcpyVocabIndices();
   void MemcpyVocabIndicesSentence(const std::vector<int> &v_input_sentence_int);
+  void MemcpyVocabIndicesSentenceTwoEncoders(const std::vector<int> &v_input_sentence_int, const std::vector<int> &v_input_sentence_another_encoder_int);
 
 public:
   void ForwardPropSource();
@@ -1104,6 +1108,77 @@ void DecoderModelWrapper<T>::InitDecoderSentence(int gpu_num, int beam_size, std
 
 
 template <typename T>
+void DecoderModelWrapper<T>::InitDecoderSentenceTwoEncoders(int gpu_num, int beam_size, std::string main_weight_file, std::string multi_src_weight_file, int longest_sentence, GlobalConfiguration &config) {
+
+  gpu_number_ = gpu_num;
+  beam_size_ = beam_size;
+  longest_sentence_ = config.longest_sentence_;
+
+  main_weight_file_ = main_weight_file;
+  multi_source_weight_file_ = multi_src_weight_file;
+  //main_integerized_file_ = main_integerized_file;
+  //multi_source_integerized_file_ = multi_source_integerized_file;
+
+  // now switch to the current GPU
+  cudaSetDevice(gpu_num);
+
+  // get model parameters from the model file
+  ExtractModelInformation(main_weight_file);
+
+  // allocate p_device_ones_
+  CudaErrorWrapper(cudaMalloc((void**)&p_device_ones_, beam_size * 1 * sizeof(int)), "DecoderModelWrapper::DecoderModelWrapper p_device_ones_ failed\n");
+  // set p_device_ones_ to all 1
+  OnesMatKernel<<<1, 256>>>(p_device_ones_, beam_size);
+  cudaDeviceSynchronize();
+
+  // allocate the output distribution on the CPU
+  p_host_outputdist_ = (T *)malloc(target_vocab_size_ * beam_size * sizeof(T));
+  eigen_outputdist_.resize(target_vocab_size_, beam_size);
+
+  // allocate the swap values
+  CudaErrorWrapper(cudaMalloc((void **)&p_device_tmp_swap_values_, lstm_size_ * beam_size * sizeof(T)), "DecoderModelWrapper::DecoderModelWrapper p_device_tmp_swap_values_ failed\n");
+
+  // allocate the input vocab indices
+  CudaErrorWrapper(cudaMalloc((void **)&p_device_input_vocab_indices_source_, longest_sentence * sizeof(int)), "DecoderModelWrapper::DecoderModelWrapper p_device_input_vocab_indices_source_ failed\n");
+
+  if (char_cnn_mode_) {
+    // char_cnn_mode_ is not written
+    ;
+  }
+
+  // now initialize the file input
+  p_file_helper_ = new FileHelperDecoder();
+  p_file_helper_->InitDecoderSentence(config.longest_sentence_);
+
+  
+  if (multi_source_weight_file_ != "NULL") {
+    p_file_helper_multi_src_ = new FileHelperDecoder();
+    p_file_helper_multi_src_->InitDecoderSentence(config.longest_sentence_);
+  }
+  
+
+  if (multi_source_mode_) {
+    CudaErrorWrapper(cudaMalloc((void **)&p_device_input_vocab_indices_source_bi_, longest_sentence * sizeof(int)), "DecoderModelWrapper::DecoderModelWrapper p_device_input_vocab_indices_source_bi_ failed\n");
+  }
+
+  // allocate the current indices
+  CudaErrorWrapper(cudaMalloc((void **)&p_device_current_indices_, beam_size * sizeof(int)), "DecoderModelWrapper::DecoderModelWrapper p_device_current_indices_ failed\n");
+
+  p_neuralmt_ = new NeuralMachineTranslation<T>();
+  p_neuralmt_->InitModelDecoding(lstm_size_, beam_size, source_vocab_size_, target_vocab_size_, \
+                                  num_layers_, main_weight_file, gpu_num, config, attention_model_mode_, \
+                                  feed_input_mode_, multi_source_mode_, combine_lstm_mode_, char_cnn_mode_);
+
+  // initialize additional stuff for model
+  p_neuralmt_->InitPreviousStates(num_layers_, lstm_size_, beam_size, gpu_num, multi_source_mode_);
+
+  // load in weights for the model
+  p_neuralmt_->LoadWeights();
+
+}
+
+
+template <typename T>
 void DecoderModelWrapper<T>::ExtractModelInformation(std::string weights_file_name) {
   logger<<"\n$$ Model Parameters\n";
 
@@ -1181,7 +1256,8 @@ void DecoderModelWrapper<T>::MemcpyVocabIndices() {
   source_length_ = p_file_helper_->sentence_length_;
 
   if (multi_source_mode_) {
-    // multi_source_mode_ is not written
+    p_file_helper_multi_src_->ReadSentence();
+    source_length_bi_ = p_file_helper_multi_src_->sentence_length_;
   } else {
     source_length_bi_ = 0;
   }
@@ -1191,7 +1267,7 @@ void DecoderModelWrapper<T>::MemcpyVocabIndices() {
   CudaErrorWrapper(cudaMemcpy(p_device_input_vocab_indices_source_, p_file_helper_->p_host_input_vocab_indices_source_, source_length_ * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indices 1\n");
 
   if (multi_source_mode_) {
-    // multi_source_mode_ is not written
+    CudaErrorWrapper(cudaMemcpy(p_device_input_vocab_indices_source_bi_, p_file_helper_multi_src_->p_host_input_vocab_indices_source_, source_length_bi_ * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indices 1\n");
   }
 
   if (char_cnn_mode_) {
@@ -1206,7 +1282,10 @@ void DecoderModelWrapper<T>::MemcpyVocabIndices() {
                        p_file_helper_->p_host_batch_information_ + 1, 1 * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indices 2\n");
 
       if (multi_source_mode_) {
-        // multi_source_mode_ is not written
+        CudaErrorWrapper(cudaMemcpy(p_neuralmt_->decoder_attention_layer_.p_device_batch_information_v2_ + i, \
+                         p_file_helper_multi_src_->p_host_batch_information_, 1 * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indicies 2\n");
+        CudaErrorWrapper(cudaMemcpy(p_neuralmt_->decoder_attention_layer_.p_device_batch_information_v2_ + beam_size_ + i, \
+                         p_file_helper_multi_src_->p_host_batch_information_ + 1, 1 * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indicies 2\n");
       }
     }
   }
@@ -1246,6 +1325,50 @@ void DecoderModelWrapper<T>::MemcpyVocabIndicesSentence(const std::vector<int> &
 
       if (multi_source_mode_) {
         // multi_source_mode_ is not written
+      }
+    }
+  }
+}
+
+
+
+template <typename T>
+void DecoderModelWrapper<T>::MemcpyVocabIndicesSentenceTwoEncoders(const std::vector<int> &v_input_sentence_int, const std::vector<int> &v_input_sentence_another_encoder_int) {
+  p_file_helper_->UseSentence(v_input_sentence_int);
+
+  source_length_ = p_file_helper_->sentence_length_;
+
+  if (multi_source_mode_) {
+    p_file_helper_multi_src_->UseSentence(v_input_sentence_another_encoder_int);
+    source_length_bi_ = p_file_helper_multi_src_->sentence_length_;
+  } else {
+    source_length_bi_ = 0;
+  }
+
+  cudaSetDevice(gpu_number_);
+
+  CudaErrorWrapper(cudaMemcpy(p_device_input_vocab_indices_source_, p_file_helper_->p_host_input_vocab_indices_source_, source_length_ * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indices 1\n");
+
+  if (multi_source_mode_) {
+    CudaErrorWrapper(cudaMemcpy(p_device_input_vocab_indices_source_bi_, p_file_helper_multi_src_->p_host_input_vocab_indices_source_, source_length_bi_ * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indices 1\n");
+  }
+
+  if (char_cnn_mode_) {
+    // char_cnn_mode_ is not written
+  }
+
+  if (attention_model_mode_) {
+    for (int i = 0; i < beam_size_; ++i) {
+      CudaErrorWrapper(cudaMemcpy(p_neuralmt_->decoder_attention_layer_.p_device_batch_information_ + i, \
+                       p_file_helper_->p_host_batch_information_, 1 * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indices 2\n");
+      CudaErrorWrapper(cudaMemcpy(p_neuralmt_->decoder_attention_layer_.p_device_batch_information_ + beam_size_ + i, \
+                       p_file_helper_->p_host_batch_information_ + 1, 1 * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indices 2\n");
+
+      if (multi_source_mode_) {
+        CudaErrorWrapper(cudaMemcpy(p_neuralmt_->decoder_attention_layer_.p_device_batch_information_v2_ + i, \
+                         p_file_helper_multi_src_->p_host_batch_information_, 1 * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indicies 2\n");
+        CudaErrorWrapper(cudaMemcpy(p_neuralmt_->decoder_attention_layer_.p_device_batch_information_v2_ + beam_size_ + i, \
+                         p_file_helper_multi_src_->p_host_batch_information_ + 1, 1 * sizeof(int), cudaMemcpyHostToDevice), "decoder memcpy_vocab_indicies 2\n");
       }
     }
   }
@@ -1377,9 +1500,22 @@ public:
                            T diversity, bool dump_sentence_embedding_mode, \
                            std::string &sentence_embedding_file_name, GlobalConfiguration &config);
 
+
+  void InitDecoderSentenceTwoEncoders(std::vector<std::string> weight_file_names, std::vector<std::string> weight_file_names_another_encoder, \
+                                      int num_hypotheses, int beam_size, T min_decoding_ratio, \
+                                      T penalty, int longest_sentence, bool print_decoding_information_mode, \
+                                      bool print_alignments_scores_mode, \
+                                      std::string decoder_output_file, std::vector<int> v_gpu_nums, \
+                                      T max_decoding_ratio, int target_vocab_size, T lp_alpha, T cp_beta, \
+                                      T diversity, bool dump_sentence_embedding_mode, \
+                                      std::string &sentence_embedding_file_name, GlobalConfiguration &config);
+
+
 public:
   void DecodeFile();
   void DecodeSentence(const std::vector<int> &v_input_sentence_int, std::string &output_sentence);
+  void DecodeSentenceTwoEncoders(const std::vector<int> &v_input_sentence_int, const std::vector<int> &v_input_sentence_another_encoder_int, std::string &output_sentence);
+
 
 public:
   void EnsemblesModels();
@@ -1437,6 +1573,63 @@ void EnsembleFactory<T>::InitDecoderSentence(std::vector<std::string> weight_fil
   eigen_outputdist_.resize(target_vocab_size, beam_size);
   eigen_normalization_.resize(1, beam_size);
 }
+
+
+
+template <typename T>
+void EnsembleFactory<T>::InitDecoderSentenceTwoEncoders(std::vector<std::string> weight_file_names, std::vector<std::string> weight_file_names_another_encoder, \
+                                                        int num_hypotheses, int beam_size, T min_decoding_ratio, \
+                                                        T penalty, int longest_sentence, bool print_decoding_information_mode, \
+                                                        bool print_alignments_scores_mode, \
+                                                        std::string decoder_output_file, std::vector<int> v_gpu_nums, \
+                                                        T max_decoding_ratio, int target_vocab_size, T lp_alpha, T cp_beta, \
+                                                        T diversity, bool dump_sentence_embedding_mode, \
+                                                        std::string &sentence_embedding_file_name, GlobalConfiguration &config) {
+  // Get the target vocab from the first file
+  target_vocab_size_ = target_vocab_size;
+  max_decoding_ratio_ = max_decoding_ratio;
+  longest_sentence_ = longest_sentence;
+
+  lp_alpha_ = lp_alpha;
+  cp_beta_ = cp_beta;
+  diversity_ = diversity;
+
+  dump_sentence_embedding_mode_ = dump_sentence_embedding_mode;
+  if (dump_sentence_embedding_mode_) {
+    out_sentence_embedding_.open(sentence_embedding_file_name);
+    out_sentence_embedding_<<std::fixed<<std::setprecision(9);
+  }
+
+  // to make sure beam search does halt
+  if (beam_size > (int)std::sqrt(target_vocab_size)) {
+    beam_size = (int)std::sqrt(target_vocab_size);
+  }
+
+  p_decoder_ = new Decoder<T>();
+  p_decoder_->InitDecoderSentence(beam_size, target_vocab_size, start_symbol_, end_symbol_, \
+                                  longest_sentence, min_decoding_ratio, penalty, decoder_output_file, \
+                                  num_hypotheses, print_decoding_information_mode, print_alignments_scores_mode);
+
+  // initialize all of the models
+  DecoderModelWrapper<T> decoder_model_wrapper;
+  decoder_model_wrapper.InitDecoderSentenceTwoEncoders(v_gpu_nums[0], beam_size, config.model_names_[0], config.model_names_multi_source_[0], longest_sentence, config);
+  v_models_.push_back(decoder_model_wrapper);
+
+  // check to be sure all modes have the same target vocab size and vocab indices and get the target vocab size
+  target_vocab_size_ = v_models_[0].target_vocab_size_;
+  for (int i = 0; i < v_models_.size(); ++i) {
+    if (v_models_[0].target_vocab_size_ != target_vocab_size) {
+      logger<<"Error: The target vocabulary sizes are not same in ensemble\n";
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  // resize the outputdist that gets sent to the decoder
+  eigen_outputdist_.resize(target_vocab_size, beam_size);
+  eigen_normalization_.resize(1, beam_size);
+}
+
+
 
 
 
@@ -1536,7 +1729,8 @@ void EnsembleFactory<T>::DecodeFile() {
       continue;
     }
 
-    int source_length = std::max(v_models_[0].source_length_, v_models_[0].source_length_bi_);
+    // int source_length = std::max(v_models_[0].source_length_, v_models_[0].source_length_bi_);
+    int source_length = v_models_[0].source_length_;
     for (int curr_index = 0; curr_index < std::min((int)(max_decoding_ratio_ * source_length), longest_sentence_ - 2); curr_index++) {
 
       for (int j = 0; j < v_models_.size(); ++j) {
@@ -1609,6 +1803,71 @@ void EnsembleFactory<T>::DecodeSentence(const std::vector<int> &v_input_sentence
   }
 
   int source_length = std::max(v_models_[0].source_length_, v_models_[0].source_length_bi_);
+  for (int curr_index = 0; curr_index < std::min((int)(max_decoding_ratio_ * source_length), longest_sentence_ - 2); curr_index++) {
+    for (int j = 0; j < v_models_.size(); ++j) {
+      v_models_[j].ForwardPropTarget(curr_index, p_decoder_->p_host_current_indices_);   
+      // now take the viterbi alignments
+    }
+
+    // now ensemble the models together
+    // this also does voting for unk-replacement
+    EnsemblesModels();
+
+    // run decoder for this iteration
+    p_decoder_->ExpandHypothesis(eigen_outputdist_, curr_index, viterbi_alignments__, alignment_scores__, diversity_);
+
+    // swap the decoding states
+    for (int j = 0; j < v_models_.size(); ++j) {
+      v_models_[j].SwapDecodingStates(p_decoder_->eigen_new_indices_changes_, curr_index);
+      v_models_[j].TargetCopyPrevStates();
+    }
+
+    // for the scores of the last hypothesis
+    last_index = curr_index;
+  }
+
+  // now run one last iteration
+  for (int j = 0; j < v_models_.size(); ++j) {
+    v_models_[j].ForwardPropTarget(last_index + 1, p_decoder_->p_host_current_indices_);
+  }
+
+  // output the final results of the decoder
+  EnsemblesModels();
+  p_decoder_->FinishCurrentHypotheses(eigen_outputdist_, viterbi_alignments__, alignment_scores__);
+  p_decoder_->ObtainOneBestHypothesis(source_length, lp_alpha_, cp_beta_, output_sentence);
+
+  return;
+}
+
+
+template <typename T>
+void EnsembleFactory<T>::DecodeSentenceTwoEncoders(const std::vector<int> &v_input_sentence_int, const std::vector<int> &v_input_sentence_another_encoder_int, std::string &output_sentence) {
+
+  for (int j = 0; j < v_models_.size(); ++j) {
+    v_models_[j].MemcpyVocabIndicesSentenceTwoEncoders(v_input_sentence_int, v_input_sentence_another_encoder_int);
+  }
+
+  DeviceSyncAll();
+
+  // init decoder
+  p_decoder_->InitDecoder();
+
+  // run forward prop on the source
+  for (int j = 0; j < v_models_.size(); ++j) {
+    v_models_[j].ForwardPropSource();
+    if (dump_sentence_embedding_mode_) {
+      v_models_[j].DumpSentenceEmbedding(out_sentence_embedding_);
+    }
+  }
+  int last_index = 0;
+
+  // for dumping hidden states we can just return
+  if (tsne_dump_mode__) {
+    return;
+  }
+
+  //int source_length = std::max(v_models_[0].source_length_, v_models_[0].source_length_bi_);
+  int source_length = v_models_[0].source_length_;
   for (int curr_index = 0; curr_index < std::min((int)(max_decoding_ratio_ * source_length), longest_sentence_ - 2); curr_index++) {
     for (int j = 0; j < v_models_.size(); ++j) {
       v_models_[j].ForwardPropTarget(curr_index, p_decoder_->p_host_current_indices_);   

@@ -81,6 +81,9 @@ public:
   std::unordered_map<std::string, std::unordered_map<int, int>> hm_bigram_indices_;
 
 public:
+  std::set<std::string> set_punctuation_;                      // for phrase bpe
+
+public:
   std::unordered_map<std::string, int> hm_codes_;
 
 public:
@@ -103,7 +106,15 @@ public:
   void Segment(const std::string &input_codes_file_name, const std::string &input_file_name, const std::string &output_file_name);
 
 public:
+  void TrainPhrase(const std::string &punct_file_name, const int &vocabulary_size, \
+                   const int &min_frequency, const std::string &input_file_name, \
+                   const std::string &output_file_name);
+  void SegmentPhrase(const std::string &input_codes_file_name, const std::string &input_punct_file_name, const std::string &input_file_name, const std::string &output_file_name);
+
+
+public:
   void ModifyGeneralization(const std::string &segmented_string, const std::string &raw_generalization, std::string &modified_generalization);
+  void ModifyPhraseGeneralization(const std::string &segmented_string, const std::string &raw_generalization, std::string &modified_generalization);
 
 private:
   void TrainBpe(std::ofstream &out_file, std::ofstream &out_log);
@@ -115,6 +126,10 @@ private:
   void UpdateBigramVocabulary(const std::string &max_frequency_bigram, std::vector<BigramUpdateParameters> &v_bigram_update);
 
 private:
+  void LoadPunctuation(std::ifstream &in_punct);
+  void GetPhraseVocabulary(std::ifstream &in_file);
+
+private:
   void PruneBigramStats(const int &threshold);
 
 private:
@@ -124,11 +139,17 @@ private:
 public:
   void LoadCodes(std::ifstream &in_codes_file);
   void SegmentBpe(const std::string &input_sentence, std::string &output_sentence);
+  void SegmentPhraseBpe(const std::string &input_sentence, std::string &output_sentence);
 
 private:
   void EncodeBpe(const std::string &input_word, std::string &output_string);
   void GetBigramSet(const std::vector<std::string> &v_characters, std::set<std::string> &s_bigrams);
   void GetMinBigram(const std::set<std::string> &s_bigrams, std::string &bigram);
+
+private:
+  void EncodePhraseBpe(const std::string &input_phrase, std::string &output_string);
+  void GetPhraseBigramSet(const std::vector<std::string> &v_characters, std::set<std::string> &s_bigrams);
+  void GetMinPhraseBigram(const std::set<std::string> &s_bigrams, std::string &bigram);
 };
 
 } // End of namespace neural_machine_translation

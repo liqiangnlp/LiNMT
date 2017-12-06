@@ -49,6 +49,7 @@ public:
 public:
   bool attention_model_mode_ = false;    // this will only be true for the upper layer on the target side of the LSTM
   bool feed_input_mode_ = false;
+  bool multi_attention_mode_ = false;
 
 public:
   // host pointers
@@ -1327,9 +1328,16 @@ void LstmInputHiddenNode<T>::SendHTAbove() {
     p_input_to_hidden_layer_->p_attention_layer_->v_nodes_[index_].ForwardProp();
     cudaStreamWaitEvent(p_input_to_hidden_layer_->input_hidden_layer_information_.s00_, p_input_to_hidden_layer_->p_attention_layer_->attention_layer_gpu_information_.forward_prop_done_, 0);
 
-    // multi_attention_mode_ is not written
+    if (multi_attention_mode_) {
+      cudaEventRecord(p_input_to_hidden_layer_->p_attention_layer_bi_->attention_layer_gpu_information_.start_forward_, p_input_to_hidden_layer_->input_hidden_layer_information_.s00_);
+      p_input_to_hidden_layer_->p_attention_layer_bi_->v_nodes_[index_].ForwardProp();
+      cudaStreamWaitEvent(p_input_to_hidden_layer_->input_hidden_layer_information_.s00_, p_input_to_hidden_layer_->p_attention_layer_bi_->attention_layer_gpu_information_.forward_prop_done_, 0);
+    }
+
+    if (multi_attention_mode_) {
+      // combiner layer is not written
+    }
   }
-  // ABOVE CHECK: OK //
 
 #ifdef DEBUG_DROPOUT
   std::cerr<<"\n"

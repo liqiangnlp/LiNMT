@@ -1371,8 +1371,19 @@ bool InputFilePreprocess::IntegerizeFileDecoding(std::string output_weights_name
       uno_source_mapping_[word] = tmp_index;
     }
   } else {
-    // multi-source, not write
-    ;
+    std::getline(multi_source_weight_file, str);
+    while (std::getline(multi_source_weight_file, str)) {
+      int tmp_index;
+      if (str.size() > 3 && str[0] == '=' && str[1] == '=' && str[2] == '=') {
+        break;
+      }
+
+      std::istringstream iss(str, std::istringstream::in);
+      iss >> word;
+      tmp_index = std::stoi(word);
+      iss >> word;
+      uno_source_mapping_[word] = tmp_index;
+    }
   }
 
   // now that we have the mappigs, integerize the file
@@ -1455,8 +1466,12 @@ bool InputFilePreprocess::IntegerizeFileDecoding(std::string output_weights_name
   final_output.close();
   source_input.close();
 
-  logger<<"\n$$ Source Decoding File Information\n"
-        <<"   Input file               : "<<source_file_name<<"\n"
+  if(!multi_source_model) {
+    logger<<"\n$$ Source Decoding File Information\n";
+  } else {
+    logger<<"\n$$ Source Decoding File Information (another encoder)\n";
+  }
+  logger<<"   Input file               : "<<source_file_name<<"\n"
         <<"   Output digits file       : "<<tmp_output_name<<"\n"
         <<"   Number of src tokens     : "<<visual_num_source_word_tokens<<"\n"
         <<"   Longest src length       : "<<visual_source_longest_sentence<<"\n"

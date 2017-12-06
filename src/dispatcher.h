@@ -48,6 +48,7 @@ public:
 public:
   void Decoding(GlobalConfiguration &configuration);
   void DecodingSentence(GlobalConfiguration &configuration);
+  void DecodingSentenceTwoEncoders(GlobalConfiguration &configuration);
 
 public:
   void PostProcessUnk(GlobalConfiguration &configuration);
@@ -67,6 +68,10 @@ public:
 public:
   void TrainBytePairEncoding(GlobalConfiguration &configuration);
   void SegmentBytePairEncoding(GlobalConfiguration &configuration);
+
+public:
+  void TrainPhraseBytePairEncoding(GlobalConfiguration &configuration);
+  void SegmentPhraseBytePairEncoding(GlobalConfiguration &configuration);
 
 public:
   void ForceDecoding(GlobalConfiguration &configuration);

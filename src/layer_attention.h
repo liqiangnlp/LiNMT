@@ -53,14 +53,19 @@ public:
 public:
   // device pointers
   T *p_device_tanh_1_;                   // lstm_size_ x minibatch_size_, tanh_1 = tanh(p_attention_layer_->p_device_w_p_ * p_device_h_t_attention_)
+  T *p_device_tanh_1_v2_;
   T *p_device_sigma_1_;                  // 1 x minibatch_size_, sigma_1 = sigmoid(p_attention_layer_->p_device_v_p_ * p_device_tanh_1_)
+  T *p_device_sigma_1_v2_;
 
   T *p_device_p_t_;                      // 1 x minibatch_size_, p_t[i] = p_device_sigma_1_[i] * p_attention_layer_->p_device_batch_information_[i], 
                                          // 0 =< i < minibatch_size
+  T *p_device_p_t_v2_;
 
   T *p_device_alignments_;               // minibatch size x (2 * d_ + 1)
+  T *p_device_alignments_v2_;
   T *p_device_h_t_ = NULL;               // lstm_size_ x minibatch_size_, initialized by {top layer of target}.v_nodes_[i].p_device_h_t_
   T *p_device_c_t_;                      // lstm_size_ x minibatch_size_
+  T *p_device_c_t_v2_;
   T *p_device_exped_scored_;             // multiply these with a binary mask, so if alignments go off edge then just set to zero
   T *p_device_final_tmp_1_;              // lstm_size_ x minibatch_size_, p_attention_layer_->p_device_w_c_p1_ * p_device_c_t_
   T *p_device_final_tmp_2_;              // lstm_size_ x minibatch_size_, p_attention_layer_->p_device_w_c_p2_ * p_device_h_t_attention_, 
@@ -69,7 +74,9 @@ public:
   int *p_device_lower_upper_;            // 2 x minibatch_size_
                                          // p_device_lower_upper_[IDX2C(0,i,2)] is from 0 to p_device_p_t_[i] - d_
                                          // p_device_lower_upper_[IDX2C(1,i,2)] is from p_device_p_t_[i] + d_ to p_attention_layer_->p_device_batch_information_[i] - 1
+  int *p_device_lower_upper_v2_;
   int *p_device_indices_;                // minibatch_size_ x (2 * d_ + 1)
+  int *p_device_indices_v2_;
   T sigma_sq_;                           // standard deviation, (d_/2.0)^2 = (d_ * d_) / 4.0
   T *p_device_h_t_attention_;            // lstm_size_ x minibatch_size_
 
@@ -81,12 +88,15 @@ public:
                                           // (value is 0 0 1 1 1)
 
   T *p_device_cached_exp_;                // (2 * d_ + 1) x minibatch_size_, stores the exp(-(s - p_t)^2/2*sigma_sq)
+  T *p_device_cached_exp_v2_;
   T *p_device_h_t_wa_cache_;              // lstm_size_ x minibatch_size_, precompute h_t multiplied by w_a
+  T *p_device_h_t_wa_cache_v2_;
 
 
 public:
   // device pointers
   T *p_device_hs_mat_;                    // lstm_size_ x (minibatch_size_ * (2 * d_ + 1)) 
+  T *p_device_hs_mat_v2_;
   T *p_device_d_errt_ht_tild_;            // this is the error passwd back from the softmax, lstm_size_ x minibatch_size_
                                           // this = v_hidden_layers_target_[layers_number - 2].v_nodes_[i].p_device_d_errt_ht_
                                           //      = SoftmaxLayer::v_nodes_[i].p_device_d_errt_ht_
@@ -199,7 +209,18 @@ void AttentionNode<T>::Init(int lstm_size, int minibatch_size, int device_number
   }
 
   if (multi_attention_v2_mode) {
-    // multi_attention_v2_mode is not written
+    CudaErrorWrapper(cudaMalloc((void**)&p_device_p_t_v2_, 1 * minibatch_size * sizeof(T)), "GPU memory allocation failed\n");
+    CudaErrorWrapper(cudaMalloc((void**)&p_device_sigma_1_v2_, 1 * minibatch_size * sizeof(T)), "GPU memory allocation failed\n");
+    CudaErrorWrapper(cudaMalloc((void**)&p_device_lower_upper_v2_, 2 * minibatch_size * sizeof(int)), "GPU memory allocation failed\n");
+    CudaErrorWrapper(cudaMalloc((void**)&p_device_alignments_v2_, (2 * d + 1) * minibatch_size * sizeof(T)), "GPU memory allocation failed\n");
+
+    CudaErrorWrapper(cudaMalloc((void**)&p_device_tanh_1_v2_, lstm_size * minibatch_size * sizeof(T)), "GPU memory allocation failed\n");
+    CudaErrorWrapper(cudaMalloc((void**)&p_device_hs_mat_v2_, (2 * d + 1) * lstm_size * minibatch_size * sizeof(T)), "GPU memory allocation failed\n");
+    CudaErrorWrapper(cudaMalloc((void**)&p_device_c_t_v2_, lstm_size * minibatch_size * sizeof(T)), "GPU memory allocation failed\n");
+    CudaErrorWrapper(cudaMalloc((void**)&p_device_indices_v2_, (2 * d + 1) * minibatch_size * sizeof(int)), "GPU memory allocation failed\n");
+
+    CudaErrorWrapper(cudaMalloc((void**)&p_device_h_t_wa_cache_v2_, lstm_size * minibatch_size * sizeof(T)), "GPU memory allocation failed\n");
+    CudaErrorWrapper(cudaMalloc((void**)&p_device_cached_exp_v2_, (2 * d + 1) * minibatch_size * sizeof(T)), "GPU memory allocation failed\n");
   }
 
   sigma_sq_ = (d * d) / 4.0;
@@ -372,7 +393,47 @@ void AttentionNode<T>::ForwardProp() {
   CudaGetLastError("AttentionNode::ForwardProp p_device_c_t_");
 
 
-  // multi_attention_v2 is not written
+  if (multi_attention_v2_mode_) {
+    cublasSetStream(p_attention_layer_->handle_, p_attention_layer_->attention_layer_gpu_information_.s00_);
+    CublasErrorWrapper(CublasGemmWrapper(p_attention_layer_->handle_, CUBLAS_OP_N, CUBLAS_OP_N, lstm_size_, minibatch_size_, lstm_size_, &alpha, p_attention_layer_->p_device_w_p_v2_, lstm_size_, \
+                       p_device_h_t_attention_, lstm_size_, &beta, p_device_tanh_1_v2_, lstm_size_), "attention forward p_t part 1\n");
+
+    TanhKernel<<<std::min(256, (lstm_size_ * minibatch_size_ + 256 - 1)/256), 256, 0, p_attention_layer_->attention_layer_gpu_information_.s00_>>>(p_device_tanh_1_v2_, p_device_tanh_1_v2_, lstm_size_ * minibatch_size_);
+    CudaGetLastError("attention tanh1");
+
+    cublasSetStream(p_attention_layer_->handle_, p_attention_layer_->attention_layer_gpu_information_.s00_);
+    CublasErrorWrapper(CublasGemmWrapper(p_attention_layer_->handle_, CUBLAS_OP_N, CUBLAS_OP_N, 1, minibatch_size_, lstm_size_, &alpha, p_attention_layer_->p_device_v_p_v2_, 1, \
+                       p_device_tanh_1_v2_, lstm_size_, &beta, p_device_sigma_1_v2_, 1), "attention forward p_t part 2\n");
+  
+    SigmoidKernel<<<std::min(256, (minibatch_size_ + 256 - 1)/256), 256, 0, p_attention_layer_->attention_layer_gpu_information_.s00_>>>(p_device_sigma_1_v2_, p_device_sigma_1_v2_, minibatch_size_);
+    CudaGetLastError("attention sigmoid");
+
+    AlignmentPosKernel<<<std::min(256, (minibatch_size_ + 256 - 1)/256), 256, 0, p_attention_layer_->attention_layer_gpu_information_.s00_>>>(p_device_sigma_1_v2_, p_device_p_t_v2_, minibatch_size_, p_attention_layer_->p_device_batch_information_v2_);
+    CudaGetLastError("attention sigmoid 2");
+
+    LowerUpperKernel<<<std::min(256, (2 * minibatch_size_ + 256 - 1) / 256), 256, 0, p_attention_layer_->attention_layer_gpu_information_.s00_>>>(p_device_p_t_v2_, p_device_lower_upper_v2_, d_, p_attention_layer_->p_device_batch_information_v2_, minibatch_size_);
+    CudaGetLastError("attention lower upper");
+
+    CreateIndicesKernel<<<1, 256, 0, p_attention_layer_->attention_layer_gpu_information_.s00_>>>(p_device_indices_v2_, d_, minibatch_size_, p_device_lower_upper_v2_, *p_device_indices_mask_);
+    CudaGetLastError("attention create indicies");
+
+    LoadInHSKernel<<<std::min(256, (2 * d_ + 1) * minibatch_size_), 256, 0, p_attention_layer_->attention_layer_gpu_information_.s00_>>>(p_attention_layer_->p_device_total_hs_mat_v2_, d_, p_device_hs_mat_v2_, p_device_indices_v2_, minibatch_size_, lstm_size_, p_attention_layer_->p_device_batch_information_v2_);
+    CudaGetLastError("attention load in hs");
+
+    cublasSetStream(p_attention_layer_->handle_, p_attention_layer_->attention_layer_gpu_information_.s00_);
+    CublasErrorWrapper(CublasGemmWrapper(p_attention_layer_->handle_, CUBLAS_OP_T, CUBLAS_OP_N, lstm_size_, minibatch_size_, lstm_size_, &alpha, p_attention_layer_->p_device_w_a_v2_, lstm_size_, \
+                       p_device_h_t_attention_, lstm_size_, &beta, p_device_h_t_wa_cache_v2_, lstm_size_), "attention forward h_t * w_a\n");
+
+    ElemReduceKernelLarge<<<std::min(minibatch_size_ * (2 * d_ + 1), 256), NUM_ATTENTION_THREADS, 0, p_attention_layer_->attention_layer_gpu_information_.s00_>>>(p_device_hs_mat_v2_, p_device_h_t_wa_cache_v2_, p_device_alignments_v2_, lstm_size_, minibatch_size_, d_);
+
+    AlignmentReductionKernel<<<1, minibatch_size_, 0, p_attention_layer_->attention_layer_gpu_information_.s00_>>>(p_device_alignments_v2_, lstm_size_, minibatch_size_, d_, sigma_sq_, p_device_p_t_v2_, p_device_indices_v2_, p_device_cached_exp_v2_);
+    CudaGetLastError("attention alignment reduction");
+
+    CreateCTKernel<<<std::min(256, (lstm_size_ * minibatch_size_ + 256 - 1) / 256), 256, 0, p_attention_layer_->attention_layer_gpu_information_.s00_>>>(p_device_alignments_v2_, p_device_hs_mat_v2_, p_device_c_t_v2_, lstm_size_, minibatch_size_, d_);
+    CudaGetLastError("attention create ct");
+  }
+
+
   // stream 0
   cublasSetStream(p_attention_layer_->handle_, p_attention_layer_->attention_layer_gpu_information_.s00_);
   // p_device_final_tmp_1_ (lstm_size_ x minibatch_size_) = p_attention_layer_->p_device_w_c_p1_ (lstm_size_ x lstm_size_) *
@@ -387,7 +448,14 @@ void AttentionNode<T>::ForwardProp() {
   CublasErrorWrapper(CublasGemmWrapper(p_attention_layer_->handle_, CUBLAS_OP_N, CUBLAS_OP_N, lstm_size_, minibatch_size_, lstm_size_, &alpha, p_attention_layer_->p_device_w_c_p2_, lstm_size_, p_device_h_t_attention_, lstm_size_, &beta, p_device_final_tmp_2_, lstm_size_), "AttentionNode::ForwardProp p_device_final_tmp_2_\n");
 
 
-  // multi_attention_v2 is not written
+  if (multi_attention_v2_mode_) {
+    beta = 1;
+    cublasSetStream(p_attention_layer_->handle_, p_attention_layer_->attention_layer_gpu_information_.s00_);
+    CublasErrorWrapper(CublasGemmWrapper(p_attention_layer_->handle_, CUBLAS_OP_N, CUBLAS_OP_N, lstm_size_, minibatch_size_, lstm_size_, &alpha, p_attention_layer_->p_device_w_c_p3_v2_, lstm_size_, \
+                       p_device_c_t_v2_, lstm_size_, &beta, p_device_final_tmp_2_, lstm_size_), "attention forward p_t part 2\n");
+  }
+
+
   // Add in the bias and tanh
   // p_device_final_tmp_2_[i] = tanh(p_device_final_tmp_1_[i] + p_device_final_tmp_2_[i] + p_attention_layer_->p_device_output_bias_[i%lstm_size_])
   TanhAttentionForwardKernel<<<std::min(256,(lstm_size_ * minibatch_size_ + 256 - 1) / 256), 256, 0, p_attention_layer_->attention_layer_gpu_information_.s00_>>>(p_device_final_tmp_2_, p_device_final_tmp_1_, p_device_final_tmp_2_, p_attention_layer_->p_device_output_bias_, lstm_size_, minibatch_size_);
@@ -658,6 +726,16 @@ public:
   T *p_device_w_c_p2_;             // lstm_size_ x lstm_size_, 
   T *p_device_output_bias_;        // lstm_size_ x 1
 
+  T *p_device_w_a_v2_;
+  T *p_device_w_p_v2_;
+  T *p_device_v_p_v2_;
+  T *p_device_w_c_p3_v2_;
+  T *p_device_tmp_1_v2_;
+  T *p_device_h_t_wa_factor_v2_;
+  T *p_device_h_t_sum_v2_;
+  T *p_device_h_s_sum_v2_;
+  
+
   int *p_device_viterbi_alignments_; // minibatch_size, for decoding unk replacement
 
   T *p_device_w_a_grad_;
@@ -687,6 +765,7 @@ public:
   T *p_device_errn_to_t_ct_;                 // lstm_size_ x minibatch_size_
 
   T **p_device_total_hs_mat_;                // longest_sent_ x (lstm_size_ x minibatch_size_), hs_mat[i] = top_source.v_nodes_[i].p_device_h_t_
+  T **p_device_total_hs_mat_v2_;
   T **p_device_total_hs_error_;              // longest_sent_ x (lstm_size_ x minibatch_size_), hs_error[i] = top_source.v_nodes_[i].p_device_d_errt_ht_
 
   T *p_device_ones_minibatch_;               // minibatch_size_, init by all 1
@@ -708,6 +787,7 @@ public:
 
 public:
   int *p_device_batch_information_;                                  // minibatch_size_ * 2, length of minibatches, then offsets
+  int *p_device_batch_information_v2_;
 
 public:
   int *p_device_ones_minibatch_int_;
@@ -1086,7 +1166,15 @@ void AttentionLayer<T>::InitAttentionDecoder(int lstm_size, int beam_size, int d
   FullVectorSetupOnes(&p_host_tmp, &p_device_ones_minibatch_, minibatch_size_);
 
   if (multi_attention_v2_mode) {
-    // multi_attention_v2_mode is not written
+    FullMatrixSetup(&p_host_tmp, &p_device_w_a_v2_, lstm_size, lstm_size);
+    FullMatrixSetup(&p_host_tmp, &p_device_w_p_v2_, lstm_size, lstm_size);
+    FullMatrixSetup(&p_host_tmp, &p_device_v_p_v2_, 1, lstm_size);
+    FullMatrixSetup(&p_host_tmp, &p_device_w_c_p3_v2_, lstm_size, lstm_size);
+    FullMatrixSetup(&p_host_tmp, &p_device_tmp_1_v2_, lstm_size, minibatch_size_);
+    FullMatrixSetup(&p_host_tmp, &p_device_h_t_wa_factor_v2_, 2 * d + 1, minibatch_size_);
+    CudaErrorWrapper(cudaMalloc((void**)&p_device_h_t_sum_v2_, lstm_size * minibatch_size_ * sizeof(T)), "GPU memory allocation failed\n");
+    CudaErrorWrapper(cudaMalloc((void**)&p_device_h_s_sum_v2_, lstm_size * minibatch_size_ * sizeof(T)), "GPU memory allocation failed\n");
+
   }
 
   CudaErrorWrapper(cudaMalloc((void **)&p_device_h_t_sum_, lstm_size * minibatch_size_ * sizeof(T)), "GPU memory allocation failed\n");
@@ -1104,9 +1192,12 @@ void AttentionLayer<T>::InitAttentionDecoder(int lstm_size, int beam_size, int d
     p_host_total_hs_mat[i] = v_top_source_states[i];
   }
 
-  //T **p_host_total_hs_mat_v2;
+  T **p_host_total_hs_mat_v2;
   if (multi_attention_v2_mode) {
-    // multi_attention_v2_mode is not written
+    p_host_total_hs_mat_v2 = (T **)malloc(longest_sentence * sizeof(T *));
+    for (int i = 0; i < longest_sentence; ++i) {
+      p_host_total_hs_mat_v2[i] = v_top_source_states_v2[i];
+    }
   }
 
   CudaErrorWrapper(cudaMalloc((void **)&p_device_ones_minibatch_int_, minibatch_size_ * sizeof(int)), "GPU memory allocation failed\n");
@@ -1123,7 +1214,10 @@ void AttentionLayer<T>::InitAttentionDecoder(int lstm_size, int beam_size, int d
   cudaMemcpy(p_device_total_hs_mat_, p_host_total_hs_mat, longest_sentence * sizeof(T *), cudaMemcpyHostToDevice);
 
   if (multi_attention_v2_mode) {
-    // multi_attention_v2_mode is not written
+    CudaErrorWrapper(cudaMalloc((void **)&p_device_total_hs_mat_v2_, longest_sentence * sizeof(T *)), "GPU memory allocation failed\n");
+    CudaErrorWrapper(cudaMalloc((void **)&p_device_batch_information_v2_, 2 * minibatch_size_ * sizeof(int)), "GPU memory allocation failed\n");
+    cudaMemcpy(p_device_total_hs_mat_v2_, p_host_total_hs_mat_v2, longest_sentence * sizeof(T *), cudaMemcpyHostToDevice);
+    free(p_host_total_hs_mat_v2);
   }
 
   if (unk_replacement_mode__) {
@@ -1158,7 +1252,10 @@ void AttentionLayer<T>::LoadWeights(std::ifstream &input_stream) {
   ReadMatrixGpu(p_device_w_c_p2_, lstm_size_, lstm_size_, input_stream);
 
   if (multi_attention_v2_mode_) {
-    // multi_attention_v2_mode_ is not written
+    ReadMatrixGpu(p_device_w_a_v2_, lstm_size_, lstm_size_, input_stream);
+    ReadMatrixGpu(p_device_w_p_v2_, lstm_size_, lstm_size_, input_stream);
+    ReadMatrixGpu(p_device_v_p_v2_, lstm_size_, 1, input_stream);
+    ReadMatrixGpu(p_device_w_c_p3_v2_, lstm_size_, lstm_size_, input_stream);
   }
 }
 

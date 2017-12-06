@@ -91,6 +91,55 @@ void BytePairEncoding::Train(const int &vocabulary_size, const int &min_frequenc
 }
 
 
+void BytePairEncoding::TrainPhrase(const std::string &punct_file_name, const int &vocabulary_size, \
+                                   const int &min_frequency, const std::string &input_file_name, \
+                                   const std::string &output_file_name) {
+
+  vocabulary_size_ = vocabulary_size;
+  min_frequency_ = min_frequency;
+  
+  std::ifstream in_punct(punct_file_name.c_str());
+  if (!in_punct) {
+    logger<<"   Error: can not open "<<punct_file_name<<"\n";
+    exit(EXIT_FAILURE);
+  }
+
+  std::ifstream in_file(input_file_name.c_str());
+  if (!in_file) {
+    logger<<"   Error: can not open "<<input_file_name<<"\n";
+    exit(EXIT_FAILURE);
+  }
+
+  std::ofstream out_file(output_file_name.c_str());
+  if (!out_file) {
+    logger<<"   Error: can not open "<<output_file_name<<"\n";
+    exit(EXIT_FAILURE);
+  }
+
+  std::string output_log_file_name = output_file_name + ".log";
+  std::ofstream out_log(output_log_file_name.c_str());
+  if (!out_log) {
+    logger<<"   Error: can not open "<<output_log_file_name<<"\n";
+    exit(EXIT_FAILURE);
+  }
+
+  LoadPunctuation(in_punct);
+  GetPhraseVocabulary(in_file);
+  GetBigramVocabulary();
+
+  TrainBpe(out_file, out_log);
+
+  in_punct.close();
+  in_file.close();
+  out_file.close();
+  out_log.close();
+  return;
+}
+
+
+
+
+
 void BytePairEncoding::Segment(const std::string &input_codes_file_name, const std::string &input_file_name, const std::string &output_file_name) {
   std::ifstream in_codes_file(input_codes_file_name.c_str());
   if (!in_codes_file) {
@@ -172,6 +221,86 @@ void BytePairEncoding::Segment(const std::string &input_codes_file_name, const s
 }
 
 
+void BytePairEncoding::SegmentPhrase(const std::string &input_codes_file_name, const std::string &input_punct_file_name, \
+                                     const std::string &input_file_name, const std::string &output_file_name) {
+  std::ifstream in_codes_file(input_codes_file_name.c_str());
+  if (!in_codes_file) {
+    logger<<"   Error: can not open "<<input_codes_file_name<<"\n";
+    exit(EXIT_FAILURE);
+  }
+  LoadCodes(in_codes_file);
+  in_codes_file.close();
+
+  std::ifstream in_punct(input_punct_file_name.c_str());
+  if (!in_punct) {
+    logger<<"   Error: can not open "<<input_punct_file_name<<"\n";
+    exit(EXIT_FAILURE);
+  }
+  LoadPunctuation(in_punct);
+  in_punct.close();
+
+
+
+  std::ifstream in_file(input_file_name.c_str());
+  if (!in_file) {
+    logger<<"   Error: can not open "<<input_file_name<<"\n";
+    exit(EXIT_FAILURE);
+  }
+
+  std::ofstream out_file(output_file_name.c_str());
+  if (!out_file) {
+    logger<<"   Error: can not open "<<output_file_name<<"\n";
+    exit(EXIT_FAILURE);
+  }
+
+  std::chrono::time_point<std::chrono::system_clock> start_total, end_total;
+  std::chrono::duration<double> elapsed_seconds;
+  start_total = std::chrono::system_clock::now();    // start time
+
+  logger<<"\n$$ Segment\n";
+  std::string input_sentence;
+  int i = 0;
+  while (std::getline(in_file, input_sentence)) {
+    ++i;
+    basic_method_.ClearIllegalChar(input_sentence);
+    basic_method_.RmStartSpace(input_sentence);
+    basic_method_.RmEndSpace(input_sentence);
+
+    std::vector<std::string> v_string_generalization;
+    basic_method_.SplitWithString(input_sentence, " |||| " ,v_string_generalization);
+
+    std::string output_sentence;
+    if (0 == v_string_generalization.size()) {
+      output_sentence = "";
+    } else {
+      SegmentPhraseBpe(v_string_generalization.at(0), output_sentence);
+      if (2 == v_string_generalization.size()) {
+        std::string output_generalization;
+        if (output_sentence == v_string_generalization.at(0)) {
+          output_generalization = v_string_generalization.at(1);
+        } else {
+          ModifyPhraseGeneralization(output_sentence, v_string_generalization.at(1), output_generalization);
+        }
+        output_sentence += " |||| " + output_generalization;
+      }
+    }
+    out_file<<output_sentence<<"\n"<<std::flush;
+    end_total = std::chrono::system_clock::now();    // start time
+    elapsed_seconds = end_total - start_total;
+
+    if (i % 1000 == 0) {
+      logger<<"\r   "<<i<<" sentences, "<<(float)i/elapsed_seconds.count()<<" sentences/s";
+    }
+  }
+  logger<<"\r   "<<i<<" sentences, "<<(float)i/elapsed_seconds.count()<<" sentences/s\n";
+
+  in_file.close();
+  out_file.close();
+  return;
+}
+
+
+
 void BytePairEncoding::ModifyGeneralization(const std::string &segmented_string, const std::string &raw_generalization, std::string &modified_generalization) {
   //modified_generalization = "modified " + raw_generalization;
   std::vector<std::string> v_segmented_words;
@@ -210,6 +339,79 @@ void BytePairEncoding::ModifyGeneralization(const std::string &segmented_string,
 
     
   }
+  return;
+}
+
+
+
+void BytePairEncoding::ModifyPhraseGeneralization(const std::string &segmented_string, const std::string &raw_generalization, std::string &modified_generalization) {
+  std::vector<std::string> v_segmented_words;
+  basic_method_.Split(segmented_string, ' ', v_segmented_words);
+  std::string input_generalization(raw_generalization.substr(1, raw_generalization.size() - 2));
+  std::vector<std::string> v_generalizations;
+  basic_method_.SplitWithString(input_generalization, "}{", v_generalizations);
+
+  std::vector<int> v_modified_steps;
+  int current_steps = 0;
+  for (std::vector<std::string>::iterator iter = v_segmented_words.begin(); iter != v_segmented_words.end(); ++iter) {
+    std::vector<std::string> v_words_in_phrase;
+    basic_method_.SplitWithString(*iter, "__", v_words_in_phrase);
+    current_steps += v_words_in_phrase.size() - 1;
+    for (int i = 0; i < v_words_in_phrase.size(); ++i) {
+      v_modified_steps.push_back(current_steps);
+    }
+  }
+
+  for (std::vector<std::string>::iterator iter = v_generalizations.begin(); iter != v_generalizations.end(); ++iter) {
+    std::vector<std::string> v_generalizations_details;
+    basic_method_.SplitWithString(*iter, " ||| ", v_generalizations_details);
+    int i = std::atoi(v_generalizations_details.at(0).c_str());
+    int j = std::atoi(v_generalizations_details.at(1).c_str());
+    if (i < v_modified_steps.size()) {
+      i -= v_modified_steps.at(i);
+      j -= v_modified_steps.at(i);
+    }
+    modified_generalization += "{" + basic_method_.IntToString(i) + " ||| "+ \
+                               basic_method_.IntToString(j) + " ||| " + \
+                               v_generalizations_details.at(2) + " ||| " + \
+                               v_generalizations_details.at(3) + " ||| " + \
+                               v_generalizations_details.at(4) + "}";
+  }
+
+
+
+  /*
+  int last_modified_position = -1;
+  for (std::vector<std::string>::iterator iter = v_generalizations.begin(); iter != v_generalizations.end(); ++iter) {
+    std::vector<std::string> v_generalizations_details;
+    basic_method_.SplitWithString(*iter, " ||| ", v_generalizations_details);
+    int i = std::atoi(v_generalizations_details.at(0).c_str());
+    int j = std::atoi(v_generalizations_details.at(1).c_str());
+    int steps = 0;
+    for (int k = 0; k < v_segmented_words.size(); ++k) {
+      if (v_segmented_words.at(k).size() > 2) {
+
+        if (k >= i && k > last_modified_position && v_segmented_words.at(k) == v_generalizations_details.at(3)) {
+          last_modified_position = k;
+          break;
+        }
+        std::string tmp_string(v_segmented_words.at(k).substr(v_segmented_words.at(k).size() - 2, v_segmented_words.at(k).size() - 1));
+        if ("@@" == tmp_string) {
+          ++steps;
+        }
+      }
+    }
+    i += steps;
+    j += steps;
+    modified_generalization += "{" + basic_method_.IntToString(i) + " ||| "+ \
+                               basic_method_.IntToString(j) + " ||| " + \
+                               v_generalizations_details.at(2) + " ||| " + \
+                               v_generalizations_details.at(3) + " ||| " + \
+                               v_generalizations_details.at(4) + "}";
+
+    
+  }
+  */
   return;
 }
 
@@ -310,6 +512,71 @@ void BytePairEncoding::GetVocabulary(std::ifstream &in_file) {
       char_tmp += " </w>";
       ++hm_vocabulary_[char_tmp];
     }
+    if (line_num % 1000 == 0) {
+      logger<<"\r   Process "<<line_num<<" lines";
+    }
+  }
+  logger<<"\r   Process "<<line_num<<" lines\n";
+  return;
+}
+
+
+void BytePairEncoding::LoadPunctuation(std::ifstream &in_punct) {
+  std::string line = "";
+  int line_num = 0;
+  logger<<"\n$$ Load punctuation\n";
+  while (std::getline(in_punct, line)) {
+    ++line_num;
+    basic_method_.ClearIllegalChar(line);
+    basic_method_.RmEndSpace(line);
+    basic_method_.RmStartSpace(line);
+    set_punctuation_.insert(line);
+  }
+  logger<<"\r   Process "<<line_num<<" lines\n";
+  return;
+}
+
+
+void BytePairEncoding::GetPhraseVocabulary(std::ifstream &in_file) {
+  std::string line = "";
+  int line_num = 0;
+
+  logger<<"\n$$ Get vocabulary\n";
+  while (std::getline(in_file, line)) {
+    ++line_num;
+    basic_method_.ClearIllegalChar(line);
+    basic_method_.RmEndSpace(line);
+    basic_method_.RmStartSpace(line);
+    
+    std::vector<std::string> v_words;
+    basic_method_.Split(line, ' ', v_words);
+    bool first_flag = true;
+    std::string phrase_tmp;
+    for (std::vector<std::string>::iterator iter = v_words.begin(); iter != v_words.end(); ++iter) {
+      if (!first_flag) {
+        phrase_tmp += " ";
+      } else {
+        first_flag = false;
+      }
+      if (set_punctuation_.find(*iter) != set_punctuation_.end()) {
+        if ("" != phrase_tmp) {
+          phrase_tmp += "</w>";
+          ++hm_vocabulary_[phrase_tmp];
+          phrase_tmp = "";
+        }
+        first_flag = true;
+      } else {
+        phrase_tmp += *iter;
+      }
+    }
+
+    if ("" != phrase_tmp) {
+      phrase_tmp += " </w>";
+      ++hm_vocabulary_[phrase_tmp];
+      phrase_tmp = "";
+      first_flag = true;
+    }
+
     if (line_num % 1000 == 0) {
       logger<<"\r   Process "<<line_num<<" lines";
     }
@@ -550,6 +817,43 @@ void BytePairEncoding::SegmentBpe(const std::string &input_sentence, std::string
 }
 
 
+void BytePairEncoding::SegmentPhraseBpe(const std::string &input_sentence, std::string &output_sentence) {
+
+  std::vector<std::string> v_words;
+  basic_method_.Split(input_sentence, ' ', v_words);
+  output_sentence.clear();
+
+  int i;
+  std::string input_string;
+  std::string output_string;
+  for (i = 0; i < v_words.size(); ++i) {
+    if (set_punctuation_.find(v_words.at(i)) != set_punctuation_.end()) {
+      if ("" != input_string) {
+        basic_method_.RmStartSpace(input_string);
+        EncodePhraseBpe(input_string, output_string);
+        input_string = "";
+        output_sentence += " " + output_string;
+        output_string = "";
+      }
+      output_sentence += " " + v_words.at(i);
+    } else {
+      input_string += " " + v_words.at(i);
+    }
+  }
+
+  if ("" != input_string) {
+    basic_method_.RmStartSpace(input_string);
+    EncodePhraseBpe(input_string, output_string);
+    input_string = "";
+    output_sentence += " " + output_string;
+    output_string = "";
+  }
+
+  basic_method_.RmStartSpace(output_sentence);
+  return;
+}
+
+
 void BytePairEncoding::EncodeBpe(const std::string &input_word, std::string &output_string) {
   
   output_string.clear();
@@ -627,6 +931,86 @@ void BytePairEncoding::EncodeBpe(const std::string &input_word, std::string &out
 }
 
 
+void BytePairEncoding::EncodePhraseBpe(const std::string &input_phrase, std::string &output_string) {
+
+  output_string.clear();
+  //std::wstring w_input_word = encoding_conversion_.UTF8ToUnicode(input_word.c_str());
+  //std::wstring w_character;
+  std::vector<std::string> v_chars;
+  //for (std::wstring::iterator iter = w_input_word.begin(); iter != w_input_word.end(); ++iter) {
+  //  w_character = *iter;
+  //  std::string character = encoding_conversion_.UnicodeToUTF8(w_character);
+  //  v_chars.push_back(character);
+  //}
+  basic_method_.Split(input_phrase, ' ', v_chars);
+  v_chars.push_back("</w>");
+
+  std::set<std::string> s_bigrams;
+  GetBigramSet(v_chars, s_bigrams);
+  //GetPhraseBigramSet(v_chars, s_bigrams);
+
+  while(true) {
+    std::string bigram;
+    GetMinPhraseBigram(s_bigrams, bigram);
+    if (bigram == "") {
+      break;
+    }
+
+    std::vector<std::string> v_bigram;
+    basic_method_.Split(bigram, ' ', v_bigram);
+    if (v_bigram.size() != 2) {
+      std::cerr<<"Warning: v_bigram.size() must be equal to 2!\n";
+      break;
+    }
+
+    std::vector<std::string> v_new_chars;
+    for (int i = 0; i < v_chars.size(); ++i) {
+      if (v_bigram.at(0) != v_chars.at(i)) {
+        v_new_chars.push_back(v_chars.at(i));
+        continue;
+      } else {
+        if (i < v_chars.size() - 1 && v_chars.at(i + 1) == v_bigram.at(1)) {
+          v_new_chars.push_back(v_bigram.at(0) + "__" + v_bigram.at(1));
+          ++i;
+        } else {
+          v_new_chars.push_back(v_chars.at(i));
+        }
+      }
+    }
+
+    v_chars.clear();
+    v_chars = v_new_chars;
+    if (1 == v_chars.size()) {
+      break;
+    } else {
+      GetBigramSet(v_chars, s_bigrams);
+    }
+  }
+
+  int i;
+  for (i = 0; i < v_chars.size(); ++i) {
+    if (v_chars.at(i) != "</w>") {
+      if(0 != i) {
+        output_string += " ";
+      }
+      std::string::size_type pos;
+      if ((pos = v_chars.at(i).find("__</w>")) != std::string::npos) {
+        std::string current_wo_eow = v_chars.at(i);
+        current_wo_eow.replace(pos, 6, "");
+        output_string += current_wo_eow;
+      } else {
+        output_string += v_chars.at(i);
+      }
+    } else {
+      continue;
+    }
+  }
+
+  return;
+}
+
+
+
 void BytePairEncoding::GetBigramSet(const std::vector<std::string> &v_characters, std::set<std::string> &s_bigrams) {
   if (v_characters.size() < 2) {
     std::cerr<<"Warning: v_characters size can not less than 2!\n";
@@ -643,6 +1027,28 @@ void BytePairEncoding::GetBigramSet(const std::vector<std::string> &v_characters
 }
 
 
+void BytePairEncoding::GetPhraseBigramSet(const std::vector<std::string> &v_characters, std::set<std::string> &s_bigrams) {
+  if (v_characters.size() < 2) {
+    std::cerr<<"Warning: v_characters size can not less than 2!\n";
+    return;
+  }
+  s_bigrams.clear();
+  std::string previous_char;
+  basic_method_.RemoveDoubleUnderline(v_characters.at(0), previous_char);
+  for (int i = 1; i < v_characters.size(); ++i) {
+    std::string current_char;
+    basic_method_.RemoveDoubleUnderline(v_characters.at(i), current_char);
+    std::string pair = previous_char + " " + current_char;
+    s_bigrams.insert(pair);
+    basic_method_.RemoveDoubleUnderline(v_characters.at(i), previous_char);
+  }
+  return;
+
+}
+
+
+
+
 void BytePairEncoding::GetMinBigram(const std::set<std::string> &s_bigrams, std::string &bigram) {
   int bigram_score = INT_MAX;
   for (std::set<std::string>::const_iterator iter = s_bigrams.begin(); iter != s_bigrams.end(); ++iter) {
@@ -654,6 +1060,19 @@ void BytePairEncoding::GetMinBigram(const std::set<std::string> &s_bigrams, std:
   return;
 }
 
+
+void BytePairEncoding::GetMinPhraseBigram(const std::set<std::string> &s_bigrams, std::string &bigram) {
+  int bigram_score = INT_MAX;
+  for (std::set<std::string>::const_iterator iter = s_bigrams.begin(); iter != s_bigrams.end(); ++iter) {
+    std::string tmp_bigram;
+    basic_method_.RemoveDoubleUnderline(*iter, tmp_bigram);
+    if (hm_codes_.find(tmp_bigram) != hm_codes_.end() && hm_codes_[tmp_bigram] < bigram_score) {
+      bigram_score = hm_codes_[*iter];
+      bigram = *iter;
+    }
+  }
+  return;
+}
 
 
 } // End of namespace neural_machine_translation

@@ -48,6 +48,10 @@ void Dispatcher::Run(int argc, char **argv) {
     DecodingSentence(configuration);
   }
 
+  if (configuration.decode_sentence_twoencs_mode_) {
+    DecodingSentenceTwoEncoders(configuration);
+  }
+
   if (configuration.postprocess_unk_mode_) {
     PostProcessUnk(configuration);
   }
@@ -72,8 +76,16 @@ void Dispatcher::Run(int argc, char **argv) {
     TrainBytePairEncoding(configuration);
   }
 
+  if (configuration.train_pbpe_mode_) {
+    TrainPhraseBytePairEncoding(configuration);
+  }
+
   if (configuration.segment_bpe_mode_) {
     SegmentBytePairEncoding(configuration);
+  }
+
+  if (configuration.segment_pbpe_mode_) {
+    SegmentPhraseBytePairEncoding(configuration);
   }
 
   logger<<"\n$$ End time\n"
@@ -464,6 +476,57 @@ void Dispatcher::DecodingSentence(GlobalConfiguration &configuration) {
 }
 
 
+
+void Dispatcher::DecodingSentenceTwoEncoders(GlobalConfiguration &configuration) {
+  logger<<"\n$$ File Information\n"
+        <<"   Config file              : "<<configuration.decode_sentence_twoencs_config_file_<<"\n"
+        <<"   Input file               : "<<configuration.decode_sentence_twoencs_input_file_<<"\n"
+        <<"   Input file (Another)     : "<<configuration.decode_sentence_twoencs_input_another_file_<<"\n"
+        <<"   Output file              : "<<configuration.decode_sentence_twoencs_output_file_<<"\n";
+
+  DecoderSentenceTwoEncoders decoder_sentence_two_encoders;
+  decoder_sentence_two_encoders.Init(configuration.decode_sentence_twoencs_config_file_);
+
+  std::ifstream in_file(configuration.decode_sentence_twoencs_input_file_.c_str());
+  if (!in_file) {
+    logger<<"   Error: can not open "<<configuration.decode_sentence_twoencs_input_file_<<" file!\n";
+    exit(EXIT_FAILURE);
+  }
+
+  std::ifstream in_file_another_encoder(configuration.decode_sentence_twoencs_input_another_file_);
+  if (!in_file_another_encoder) {
+    logger<<"   Error: can not open "<<configuration.decode_sentence_twoencs_input_another_file_<<" file!\n";
+    exit(EXIT_FAILURE);
+  }
+
+
+  logger<<"\n$$ Translating\n";
+  std::ofstream out_file(configuration.decode_sentence_twoencs_output_file_.c_str());
+  if (!out_file) {
+    logger<<"   Error: can not write "<<configuration.decode_sentence_twoencs_output_file_<<" file!\n";
+    exit(EXIT_FAILURE);
+  }
+
+  int number_of_sentences = 0;
+  std::string input_sentence;
+  std::string input_sentence_another_encoder;
+  while (std::getline(in_file, input_sentence)) {
+    std::getline(in_file_another_encoder, input_sentence_another_encoder);
+    ++number_of_sentences;
+    std::string output_sentence;
+    decoder_sentence_two_encoders.Process(input_sentence, input_sentence_another_encoder, output_sentence);
+    out_file<<"["<<number_of_sentences<<"] "<<output_sentence<<"\n";
+    logger<<"\r   "<<number_of_sentences<<" sentences";
+  }
+  logger<<"\r   "<<number_of_sentences<<" sentences\n";
+
+  in_file.close();
+  out_file.close();
+  return;
+}
+
+
+
 void Dispatcher::PostProcessUnk(GlobalConfiguration &configuration) {
 
   logger<<"\n$$ File Information\n" \
@@ -591,6 +654,23 @@ void Dispatcher::TrainBytePairEncoding(GlobalConfiguration &configuration) {
 }
 
 
+void Dispatcher::TrainPhraseBytePairEncoding(GlobalConfiguration &configuration) {
+  logger<<"\n$$ File Information\n"
+        <<"   Punct File Name          : "<<configuration.pbpe_input_punct_file_name_<<"\n"
+        <<"   Vocabulary Size          : "<<configuration.pbpe_vocabulary_size_<<"\n"
+        <<"   Min Frequency            : "<<configuration.pbpe_min_frequency_<<"\n"
+        <<"   Input File Name          : "<<configuration.pbpe_input_file_name_<<"\n"
+        <<"   Output File Name         : "<<configuration.pbpe_output_file_name_<<"\n";
+
+  BytePairEncoding byte_pair_encoding;
+  byte_pair_encoding.TrainPhrase(configuration.pbpe_input_punct_file_name_, configuration.pbpe_vocabulary_size_, \
+                                 configuration.pbpe_min_frequency_, configuration.pbpe_input_file_name_, \
+                                 configuration.pbpe_output_file_name_);
+  return;
+}
+
+
+
 void Dispatcher::SegmentBytePairEncoding(GlobalConfiguration &configuration) {
   logger<<"\n$$ File Information\n"
         <<"   Input Codes File Name    : "<<configuration.bpe_input_codes_file_name_<<"\n"
@@ -599,6 +679,20 @@ void Dispatcher::SegmentBytePairEncoding(GlobalConfiguration &configuration) {
 
   BytePairEncoding byte_pair_encoding;
   byte_pair_encoding.Segment(configuration.bpe_input_codes_file_name_, configuration.bpe_input_file_name_, configuration.bpe_output_file_name_);
+}
+
+
+void Dispatcher::SegmentPhraseBytePairEncoding(GlobalConfiguration &configuration) {
+  logger<<"\n$$ File Information\n"
+        <<"   Input Codes File Name    : "<<configuration.pbpe_input_codes_file_name_<<"\n"
+        <<"   Punctuation File Name    : "<<configuration.pbpe_input_punct_file_name_<<"\n"
+        <<"   Input File Name          : "<<configuration.pbpe_input_file_name_<<"\n"
+        <<"   Output File Name         : "<<configuration.pbpe_output_file_name_<<"\n";
+
+  BytePairEncoding byte_pair_encoding;
+  byte_pair_encoding.SegmentPhrase(configuration.pbpe_input_codes_file_name_, configuration.pbpe_input_punct_file_name_, \
+                                   configuration.pbpe_input_file_name_, configuration.pbpe_output_file_name_);
+  return;
 }
 
 

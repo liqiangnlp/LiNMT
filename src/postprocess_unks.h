@@ -21,6 +21,8 @@
 
 namespace neural_machine_translation {
 
+#define JUST_FOR_ZH_TO_PT
+
 class PostProcessUnks {
 
 public:

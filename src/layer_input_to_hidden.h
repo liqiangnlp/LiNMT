@@ -23,6 +23,7 @@
 #include "utility_cu.h"
 #include "layer_hidden_to_hidden.h"
 #include "layer_transfer.h"
+#include "another_encoder.h"
 
 
 namespace neural_machine_translation {
@@ -269,6 +270,10 @@ public:
   int input_vocab_size_;
   AttentionLayer<T> *p_attention_layer_ = NULL;
   bool feed_input_mode_ = false;
+
+public:
+  bool multi_source_attention_mode_ = false;
+  AttentionLayer<T> *p_attention_layer_bi_ = NULL;
 
 public:
   bool char_cnn_mode_ = false;
@@ -1400,8 +1405,9 @@ void InputToHiddenLayer<T>::LoadWeightsGpu(std::ifstream &input_stream) {
 
   if (NULL != p_attention_layer_) {
     p_attention_layer_->LoadWeights(input_stream);
-
-    // multi_source_attention_mode_ is not written
+    if (multi_source_attention_mode_) {
+      ; // not use
+    }
   }
 
   // char_cnn_layer != NULL is not written

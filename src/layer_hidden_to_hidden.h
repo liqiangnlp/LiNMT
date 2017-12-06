@@ -231,6 +231,9 @@ public:
   AttentionLayer<T> *p_attention_layer_ = NULL;
 
 public:
+  bool multi_source_attention_mode_ = false;
+
+public:
   bool bi_dir_mode_ = false;        // flag for bidirectional encoder madness
   int layer_number_ = -1;           // start at 1, for indexing directly into the target layer
   
@@ -969,10 +972,10 @@ void HiddenToHiddenLayer<T>::LoadWeightsGpu(std::ifstream &input_stream) {
 
   if (NULL != p_attention_layer_) {
     p_attention_layer_->LoadWeights(input_stream);
-
-    // multi_source_attention_mode is not written
+    if (multi_source_attention_mode_) {
+      ; // not use
+    }
   }
-  //cudaSetDevice(0);
 }
 
 

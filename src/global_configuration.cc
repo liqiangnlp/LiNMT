@@ -41,6 +41,10 @@ void GlobalConfiguration::ParseCommandLine(int argc, char **argv) {
   // 1 kbest, 2 NMT model, 3 output
   std::vector<std::string> v_decoding_sentences;
 
+  // for the decoding-sentence-anenc, 4 arguments must be entered for decoding-sentence at least,
+  // ...
+  std::vector<std::string> v_decoding_sentences_twoencs;
+
   // for the --postprocess-unk, 4 arguments must be entered for --postprocess-unk
   // 1 dict, 2 1best 3 1best-unk 4 outoov-mode
   std::vector<std::string> v_postprocess_unk;
@@ -81,14 +85,16 @@ void GlobalConfiguration::ParseCommandLine(int argc, char **argv) {
   std::vector<std::string> v_words_embeddings;
 
   std::vector<std::string> v_parameters_of_bpe;
+  std::vector<std::string> v_parameters_of_phrase_bpe;
 
-  
+
   namespace p_options = boost::program_options;
   p_options::options_description description("Options");
   AddOptions(description, training_files, continue_train, test_files, \
-             kbest_files, v_decoding_sentences, v_postprocess_unk, decoding_ratio, gpu_indices, lower_upper_range, \
+             kbest_files, v_decoding_sentences, v_decoding_sentences_twoencs, v_postprocess_unk, \
+             decoding_ratio, gpu_indices, lower_upper_range, \
              adaptive_learning_rate, clip_cell_values, v_bleu_score, v_average_models, v_vocabulary_replacement, \
-             v_words_embeddings, v_parameters_of_bpe);
+             v_words_embeddings, v_parameters_of_bpe, v_parameters_of_phrase_bpe);
 
   boost::program_options::variables_map v_map;
 
@@ -115,6 +121,11 @@ void GlobalConfiguration::ParseCommandLine(int argc, char **argv) {
     if (v_map.count("decoding-sentence")) {
       DecodingSentence(v_decoding_sentences);
       return;
+    }
+
+    if (v_map.count("decoding-sentence-twoencs")) {
+       DecodingSentenceTwoEncoders(v_decoding_sentences_twoencs);
+       return;
     }
 
     if (v_map.count("force-decoding")) {
@@ -145,9 +156,15 @@ void GlobalConfiguration::ParseCommandLine(int argc, char **argv) {
     if (v_map.count("bpe-train")) {
       TrainBytePairEncoding(v_map, v_parameters_of_bpe);
     }
+    if (v_map.count("pbpe-train")) {
+      TrainPhraseBytePairEncoding(v_map, v_parameters_of_phrase_bpe);
+    }
 
     if (v_map.count("bpe-segment")) {
       SegmentBytePairEncoding(v_map, v_parameters_of_bpe);
+    }
+    if (v_map.count("pbpe-segment")) {
+      SegmentPhraseBytePairEncoding(v_map, v_parameters_of_phrase_bpe);
     }
 
   } catch(boost::program_options::error& e) {
@@ -169,11 +186,13 @@ void GlobalConfiguration::NormalSettingsAndChecking(boost::program_options::opti
 
   if (!(v_map.count("tune") || v_map.count("continue-tune") || \
         v_map.count("decoding") || v_map.count("decoding-sentence") || \
+        v_map.count("decoding-sentence-twoencs") || \
         v_map.count("force-decoding") || v_map.count("postprocess-unk") || \
         v_map.count("bleu") || v_map.count("average-models") || \
         v_map.count("vocab-replacement") || v_map.count("word-embedding") || \
         v_map.count("stoch-gen") || v_map.count("bpe-train") || \
-        v_map.count("bpe-segment"))) {
+        v_map.count("bpe-segment") || v_map.count("pbpe-train") || \
+        v_map.count("pbpe-segment"))) {
     logger<<"Please use \n"
           <<"   $./LiNMT --help\n";
     exit(EXIT_FAILURE);
@@ -192,7 +211,9 @@ void GlobalConfiguration::NormalSettingsAndChecking(boost::program_options::opti
   if (v_map.count("average-models") || v_map.count("postprocess-unk") || \
 	  v_map.count("bleu") || v_map.count("vocab-replacement") || \
       v_map.count("word-embedding") || v_map.count("bpe-train") || \
-      v_map.count("bpe-segment") || v_map.count("decoding-sentence")) {
+      v_map.count("bpe-segment") || v_map.count("decoding-sentence") || \
+      v_map.count("decoding-sentence-twoencs") || \
+      v_map.count("pbpe-train") || v_map.count("pbpe-segment")) {
     return;
   }
 
@@ -1079,6 +1100,40 @@ void GlobalConfiguration::DecodingSentence(std::vector<std::string> &v_decoding_
 
 
 
+void GlobalConfiguration::DecodingSentenceTwoEncoders(std::vector<std::string> &v_decoding_sentences_twoencs) {
+
+  logger<<"\n$$ Decoding sentence mode (Two Encoders)\n";
+
+  if (v_decoding_sentences_twoencs.size() != 4) {
+    logger<<"Error: --decoding-sentence-twoencs takes four arguements.\n"
+          <<" <config> <input-src> <input-src-another> <output>\n";
+    exit(EXIT_FAILURE);
+  }
+
+  decode_sentence_twoencs_config_file_ = v_decoding_sentences_twoencs.at(0);
+  decode_sentence_twoencs_input_file_ = v_decoding_sentences_twoencs.at(1);
+  decode_sentence_twoencs_input_another_file_ = v_decoding_sentences_twoencs.at(2);
+  decode_sentence_twoencs_output_file_ = v_decoding_sentences_twoencs.at(3);
+
+  training_mode_ = false;
+  decode_mode_ = false;
+  decode_sentence_mode_ = false;
+  decode_sentence_twoencs_mode_ = true;
+  test_mode_ = false;
+  stochastic_generation_mode_ = false;
+  postprocess_unk_mode_ = false;
+  calculate_bleu_mode_ = false;
+  average_models_mode_ = false;
+  vocabulary_replacement_mode_ = false;
+  dump_word_embedding_mode_ = false;
+  train_bpe_mode_ = false;
+  segment_bpe_mode_ = false;
+  sequence_to_sequence_mode_ = true;
+  return;
+}
+
+
+
 void GlobalConfiguration::ForceDecoding(boost::program_options::variables_map &v_map, std::vector<std::string> &test_files, std::vector<int> &gpu_indices) {
 
   force_decode_mode__ = true;
@@ -1379,12 +1434,45 @@ void GlobalConfiguration::TrainBytePairEncoding(boost::program_options::variable
 }
 
 
+void GlobalConfiguration::TrainPhraseBytePairEncoding(boost::program_options::variables_map &v_map, std::vector<std::string> &v_parameters_of_phrase_bpe) {
+  logger<<"\n$$ Train Phrase Byte Pair Encoding Model\n";
+  if (v_parameters_of_phrase_bpe.size() != 5) {
+    logger<<"Error: --pbpe-train takes five arguements.\n"
+          <<" <punct> <vocab-size> <min-freq> <input> <output>\n";
+    exit(EXIT_FAILURE);
+  }
+
+  pbpe_input_punct_file_name_ = v_parameters_of_phrase_bpe[0];
+  pbpe_vocabulary_size_ = std::stoi(v_parameters_of_phrase_bpe.at(1).c_str());
+  pbpe_min_frequency_ = std::stoi(v_parameters_of_phrase_bpe.at(2).c_str());
+  pbpe_input_file_name_ = v_parameters_of_phrase_bpe[3];
+  pbpe_output_file_name_ = v_parameters_of_phrase_bpe[4];
+  
+  training_mode_ = false;
+  decode_mode_ = false;
+  decode_sentence_mode_ = false;
+  test_mode_ = false;
+  stochastic_generation_mode_ = false;
+  postprocess_unk_mode_ = false;
+  calculate_bleu_mode_ = false;
+  average_models_mode_ = false;
+  vocabulary_replacement_mode_ = false;
+  dump_word_embedding_mode_ = false;
+  train_bpe_mode_ = false;
+  segment_bpe_mode_ = false;
+  train_pbpe_mode_ = true;
+  segment_pbpe_mode_ = false;
+  return;
+}
+
+
+
 
 void GlobalConfiguration::SegmentBytePairEncoding(boost::program_options::variables_map &v_map, std::vector<std::string> &v_parameters_of_bpe) {
 
   logger<<"\n$$ BPE Segment\n";
   if (v_parameters_of_bpe.size() != 3) {
-    logger<<"Error: --bpe-segment takes four arguements.\n"
+    logger<<"Error: --bpe-segment takes three arguements.\n"
           <<" <codes> <input> <output>\n";
     exit(EXIT_FAILURE);
   }
@@ -1407,6 +1495,39 @@ void GlobalConfiguration::SegmentBytePairEncoding(boost::program_options::variab
   segment_bpe_mode_ = true;
   return;
 }
+
+
+void GlobalConfiguration::SegmentPhraseBytePairEncoding(boost::program_options::variables_map &v_map, std::vector<std::string> &v_parameters_of_phrase_bpe) {
+  logger<<"\n$$ PBPE Segment\n";
+  if (v_parameters_of_phrase_bpe.size() != 4) {
+    logger<<"Error: --pbpe-segment takes four arguements.\n"
+          <<" <codes> <punct> <input> <output>\n";
+    exit(EXIT_FAILURE);
+  }
+
+  pbpe_input_codes_file_name_ = v_parameters_of_phrase_bpe[0];
+  pbpe_input_punct_file_name_ = v_parameters_of_phrase_bpe[1];
+  pbpe_input_file_name_ = v_parameters_of_phrase_bpe[2];
+  pbpe_output_file_name_ = v_parameters_of_phrase_bpe[3];
+  
+  training_mode_ = false;
+  decode_mode_ = false;
+  decode_sentence_mode_ = false;
+  test_mode_ = false;
+  stochastic_generation_mode_ = false;
+  postprocess_unk_mode_ = false;
+  calculate_bleu_mode_ = false;
+  average_models_mode_ = false;
+  vocabulary_replacement_mode_ = false;
+  dump_word_embedding_mode_ = false;
+  train_bpe_mode_ = false;
+  segment_bpe_mode_ = false;
+  train_pbpe_mode_ = false;
+  segment_pbpe_mode_ = true;
+  return;
+
+}
+
 
 
 
@@ -1455,12 +1576,13 @@ void GlobalConfiguration::OptionsSetByUser(boost::program_options::variables_map
 void GlobalConfiguration::AddOptions(boost::program_options::options_description &description, std::vector<std::string> &training_files, \
                                      std::vector<std::string> &continue_train, std::vector<std::string> &test_files, \
                                      std::vector<std::string> &kbest_files, std::vector<std::string> &v_decoding_sentences, \
+                                     std::vector<std::string> &v_decoding_sentences_twoencs, \
                                      std::vector<std::string> &v_postprocess_unk, std::vector<precision> &decoding_ratio, \
                                      std::vector<int> &gpu_indices, std::vector<precision> &lower_upper_range, \
                                      std::vector<std::string> &adaptive_learning_rate, std::vector<precision> &clip_cell_values, \
                                      std::vector<std::string> &v_bleu_score, std::vector<std::string> &v_average_models, \
                                      std::vector<std::string> &v_vocabulary_replacement, std::vector<std::string> &v_words_embeddings, \
-                                     std::vector<std::string> &v_parameters_of_bpe) {
+                                     std::vector<std::string> &v_parameters_of_bpe, std::vector<std::string> &v_parameters_of_phrase_bpe) {
   namespace p_options = boost::program_options;
   description.add_options() 
     ("help", "LiNMT Usage\n")
@@ -1474,6 +1596,8 @@ void GlobalConfiguration::AddOptions(boost::program_options::options_description
     " <paths> <m1> ... <mn> <output>")
     ("decoding-sentence", p_options::value<std::vector<std::string> >(&v_decoding_sentences)->multitoken(), "Decoding sentence by sentence\n"\
     " <config> <input> <output>")
+    ("decoding-sentence-twoencs", p_options::value<std::vector<std::string> >(&v_decoding_sentences_twoencs)->multitoken(), "Decoding sentence by sentence (another encoder)\n"\
+    " <config> <input-src> <input-src-another> <output>")
     ("force-decoding", p_options::value<std::vector<std::string> >(&test_files)->multitoken(), "Force decoding\n"\
     " NMT: <src> <tgt> <model> <output>\n"\
     " NLM: <tgt> <model> <output>")
@@ -1526,6 +1650,9 @@ void GlobalConfiguration::AddOptions(boost::program_options::options_description
     ("screen-print-rate", p_options::value<int>(&screen_print_rate_), "How many minibatches to print information\n DEFAULT: 20\n")
     ("decoded-files", p_options::value<std::vector<std::string> >(&decode_user_files_)->multitoken(), "File to be decoded"\
      "\n <file1> ... <filen>")
+    ("another-encoder-decoded-files", p_options::value<std::vector<std::string> >(&decode_user_files_additional_)->multitoken(), "File in another encoder to be decoded"\
+     "\n <file1> ... <filen>")
+    ("another-encoder-vocab-mappings", p_options::value<std::vector<std::string> >(&model_names_multi_source_)->multitoken(), "<vocab 1> ... <vocab n>")
     ("beam-size",p_options::value<int>(&beam_size_), "Beam size\n DEFAULT: 12")
     ("penalty", p_options::value<precision> (&penalty_), "Penalty\n DEFAULT: 0")
     ("decoding-ratio", p_options::value<std::vector<precision>>(&decoding_ratio)->multitoken(), "Restrict the output length\n DEFAULT: 0.5 1.5")
@@ -1540,7 +1667,10 @@ void GlobalConfiguration::AddOptions(boost::program_options::options_description
     ("tmp-dir-location", p_options::value<std::string>(&tmp_location_), "Specify the tmp location\n DEFAULT: ./")
     ("log", p_options::value<std::string>(&output_log_file_name_), "Print out informations\n <file>\n")
     ("bpe-train", p_options::value<std::vector<std::string> >(&v_parameters_of_bpe)->multitoken(), "Train BPE model\n <vocab-size> <min-freq> <input> <output>")
-    ("bpe-segment", p_options::value<std::vector<std::string> >(&v_parameters_of_bpe)->multitoken(), "BPE segment\n <codes> <input> <output>");  
+    ("bpe-segment", p_options::value<std::vector<std::string> >(&v_parameters_of_bpe)->multitoken(), "BPE segment\n <codes> <input> <output>\n")
+    ("pbpe-train", p_options::value<std::vector<std::string> >(&v_parameters_of_phrase_bpe)->multitoken(), "Train Phrase-BPE model\n <punct> <vocab-size> <min-freq> <input> <output>")
+    ("pbpe-segment", p_options::value<std::vector<std::string> >(&v_parameters_of_phrase_bpe)->multitoken(), "Phrase-BPE segment\n <codes> <punct> <input> <output>");
+
 }
 
 

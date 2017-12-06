@@ -50,6 +50,44 @@ private:
   bool LoadParallelVocabulary(const std::string &nmt_model_file, int &target_vocab_size);
 };
 
+
+class DecoderSentenceTwoEncoders {
+
+private:
+  GlobalConfiguration global_configuration_;
+  AttentionConfiguration attention_configuration_;
+
+private:
+  BasicMethod basic_method_;
+
+public:
+  EnsembleFactory<precision> ensemble_decode_;
+
+public:
+  std::unordered_map<std::string, int> uno_source_mapping_word_int_;
+  std::unordered_map<std::string, int> uno_source_mapping_word_int_another_encoder_;
+  std::unordered_map<int, std::string> uno_target_mapping_int_word_;
+
+
+public:
+  bool Init(std::string &config);
+  bool Process(const std::string &input_sentence, const std::string &input_sentence_another_encoder, std::string &output_sentence);
+
+private:
+  bool IntegerizeSentence(const std::string &input_sentence, std::vector<int> &v_input_sentence_int);
+  bool IntegerizeSentenceAnotherEncoder(const std::string &input_sentence_another_encoder, std::vector<int> &v_input_sentence_another_encoder_int);
+  bool UnintSentence(std::string &sentence);
+
+
+private:
+  bool GeneralSettings(std::map<std::string, std::string> &m_parameters);
+  bool ReadConfigFile(const std::string &config_file_name, std::map<std::string, std::string> &m_parameters);
+  bool LoadParallelVocabulary(const std::string &nmt_model_file, int &target_vocab_size);
+  bool LoadAnotherEncoderVocabulary(const std::string &nmt_model_another_encoder_file);
+};
+
+
+
 } // End of namespace neural_machine_translation
 
 

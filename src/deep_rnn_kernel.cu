@@ -95,6 +95,7 @@ __global__ void ForwardSigmoidKernel(double *p_device_final, double *p_tmp1, dou
 }
 
 
+
 // Forward tanh kernel
 __global__ void ForwardTanhKernel(float *p_device_final, float *p_tmp1, float *p_tmp2, float *p_device_bias, int hiddenstate_size) {
   int idx = threadIdx.x + blockIdx.y * blockDim.x;

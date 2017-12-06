@@ -83,6 +83,9 @@ public:
   bool ClearIllegalChar(std::string &str);
 
 public:
+  bool UnBpe(std::string &input);
+
+public:
   bool RmEndSpace(std::string &line);
   bool RmStartSpace(std::string &line);
 
@@ -92,6 +95,7 @@ public:
 public:
   bool RemoveExtraSpace(std::string &input_string, std::string &output_string);
   bool RemoveAllSpace(const std::string &input_string, std::string &output_string);
+  bool RemoveDoubleUnderline(const std::string &input_string, std::string &output_string);
 
 public:
   std::string size_tToString(size_t &source);

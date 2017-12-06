@@ -47,6 +47,19 @@ __global__ void ForwardSigmoidKernel(float *p_device_final, float *p_tmp1, float
 __global__ void ForwardSigmoidKernel(double *p_device_final, double *p_tmp1, double *p_tmp2, double *p_device_bias, int hiddenstate_size);
 
 
+template<typename T>
+__global__ void ForwardSigmoidKernelSmall(T *p_device_final, T *p_tmp_1, T *p_device_bias, int hiddenstate_size) {
+  int idx = threadIdx.x + blockIdx.y * blockDim.x;
+  if (idx < hiddenstate_size) {
+    int index = IDX2C(idx, blockIdx.x, hiddenstate_size);
+    double temp_val = p_tmp_1[index] + p_device_bias[idx];
+    p_device_final[index] = 1.0 / (1.0 + exp(-1.0 * temp_val));
+  }
+}
+
+
+
+
 template <typename T>
 __global__ void ForwardSigmoidKernelFeed(T *p_device_final, T *p_tmp1, T *p_tmp2, T *p_tmp3, T *p_device_bias, int hiddenstate_size) {
   int idx = threadIdx.x + blockIdx.y * blockDim.x;
@@ -82,6 +95,16 @@ __global__ void ForwardCTKernel(T *p_device_c_t, T *p_device_f_t, T *p_device_c_
   if (idx < hiddenstate_size) {
     int index = IDX2C(idx, blockIdx.x, hiddenstate_size);
     p_device_c_t[index] = p_device_f_t[index] * p_device_c_t_prev[index] + p_device_i_t[index] * p_device_c_prime_t_tanh[index];
+  }
+}
+
+
+template <typename T>
+__global__ void ForwardCTKernelTree(T *p_device_c_t, T *p_device_f_t_1, T *p_device_c_t_prev_1, T *p_device_f_t_2, T *p_device_c_t_prev_2, T *p_device_i_t, T *p_device_c_prime_t_tanh, int hiddenstate_size) {
+  int idx = threadIdx.x + blockIdx.y * blockDim.x;
+  if (idx < hiddenstate_size) {
+    int index = IDX2C(idx, blockIdx.x, hiddenstate_size);
+    p_device_c_t[index] = p_device_f_t_1[index] * p_device_c_t_prev_1[index] + p_device_f_t_2[index] * p_device_c_t_prev_2[index] + p_device_i_t[index] * p_device_c_prime_t_tanh[index];
   }
 }
 
